@@ -2,95 +2,39 @@
 import os
 import ansa
 from ansa import *
+from os import path
 
 DeckCurrent = constants.OPENFOAM
-#@session.defbutton('1_CAD ASSEMBLY', 'CheckPidPart','Check PID and Module IDs In Model')
-def CheckMidPartTool():
-	# Need some documentation? Run this with F5
-	AnsaParts = base.CollectEntities(DeckCurrent, None, ['ANSAPART'])
-	if len(AnsaParts) >0:
-		SetPidToModuleIdsFunc(AnsaParts)
-		
-		ListPartsNoModuleIDs, ListPartsDoublePIDs, ListPartNotMatchPID_ModuleId, ListPartError = CheckInfosPIDInPartsFunc(AnsaParts)
-		if len(ListPartError) >0:
-			base.Or(ListPartError)
-			if len(ListPartsNoModuleIDs) >0:
-				NameNoModuleIDs = '2_No Module IDs'
-				GroupNoModuleIDs = CreateNewGroupsFunc(NameNoModuleIDs)
-				base.AddLinkedPartsToGroup(ListPartsNoModuleIDs, GroupNoModuleIDs)
-		
-			if len(ListPartsDoublePIDs) >0:
-				NameDoubleModuleIDs = '1_Part_2PIDs'
-				GroupDoubleModuleIDs = CreateNewGroupsFunc(NameDoubleModuleIDs)
-				base.AddLinkedPartsToGroup(ListPartsDoublePIDs, GroupDoubleModuleIDs)
-		
-			if len(ListPartNotMatchPID_ModuleId) >0:
-				NamePartNotMatchPID = '3_PID_Part_Unmatch'
-				GroupNotMatchPID = CreateNewGroupsFunc(NamePartNotMatchPID)
-				base.AddLinkedPartsToGroup(ListPartNotMatchPID_ModuleId, GroupNotMatchPID)
-		
-		else:
-			print('PID and Module Id in model are OK')
-		
-	guitk.UserError('Done ^.^.....')
+PathQuality = 'V:/13.INSTITUTES/01.ATI/05.CAE_Center/01.MOD/00.Common/100.Member/3576613_N.HIEP/'
+### Đọc thông tin quality và parameter của Vinfast
+@session.defbutton('98_QUALITY_PARAMETER', '10mm_CRASH_VF','Read infos quality and paramerter')
+def ReadInfos10mm_Crash():
+	mesh.ReadMeshParams(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/10mm_Param_Crash_VINFAST.ansa_mpar"))
+	mesh.ReadQualityCriteria(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/10mm_Qual_Crash_VINFAST.ansa_qual"))
+
+	base.SetViewButton({'HIDDEN': 'on'})
+
+@session.defbutton('98_QUALITY_PARAMETER', '10mm_NASTRAN_VF','Read infos quality and paramerter')
+def ReadInfos10mm_Nas():
+	mesh.ReadMeshParams(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/10mm_Param_NAS_VINFAST.ansa_mpar"))
+	mesh.ReadQualityCriteria(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/10mm_Qual_Nastran_VINFAST.ansa_qual"))
+
+	base.SetViewButton({'HIDDEN': 'on'})	
+
+@session.defbutton('98_QUALITY_PARAMETER', '5mm_CRASH_VF','Read infos quality and paramerter')
+def ReadInfos5mm_Crash():
+	mesh.ReadMeshParams(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/5mm_Param_Crash_VINFAST.ansa_mpar"))
+	mesh.ReadQualityCriteria(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/5mm_Qual_Crash_VINFAST.ansa_qual"))
+
+	base.SetViewButton({'HIDDEN': 'on'})		
+	
+@session.defbutton('98_QUALITY_PARAMETER', '5mm_NASTRAN_VF','Read infos quality and paramerter')
+def ReadInfos5mm_Nas():
+	mesh.ReadMeshParams(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/5mm_Param_VINFAST_NASTRAN.ansa_mpar"))
+	mesh.ReadQualityCriteria(path.join(PathQuality, "Script_data/99-Param_Qual/VINFAST/5mm_Qual_Nastran_VINFAST.ansa_qual"))
+
+	base.SetViewButton({'HIDDEN': 'on'})
 
 
-def SetPidToModuleIdsFunc(AnsaParts):
-	
-	for i in range(0, len(AnsaParts), 1):
-		ValsPartInfos = base.GetEntityCardValues(DeckCurrent, AnsaParts[i], ['PID', 'Module Id'])
-		if ValsPartInfos['Module Id'] != ValsPartInfos['PID']:
-			base.SetEntityCardValues(DeckCurrent, AnsaParts[i], {'Module Id': ValsPartInfos['PID']})
-		
-def CheckInfosPIDInPartsFunc(AnsaParts):
-	
-	ListPartsNoModuleIDs =[]
-	ListPartsDoublePIDs = []
-	ListPartNotMatchPID_ModuleId = []
-	ListPartError = []
-	
-	for SinglePart in AnsaParts:
-		ElementInParts = base.CollectEntities(DeckCurrent, SinglePart, ['__ELEMENTS__', 'FACE'], recursive = True)
-		if len(ElementInParts) >0:
-			
-			ValsAnsaPart = base.GetEntityCardValues(DeckCurrent, SinglePart, ['Module Id', 'PID'])
-			TokensValsPID = ValsAnsaPart['PID'].split(',')
-			if ValsAnsaPart['Module Id'] == '':
-				ListPartsNoModuleIDs.append(SinglePart)
-				ListPartError.append(SinglePart)
-		
-			if len(TokensValsPID) >1:
-				ListPartsDoublePIDs.append(SinglePart)
-				ListPartError.append(SinglePart)	
-		
-			if ValsAnsaPart['Module Id'] != ValsAnsaPart['PID']:
-				Pos1st = FindEntityInListElementsFunc(SinglePart, ListPartsNoModuleIDs)
-				Pos2nd = FindEntityInListElementsFunc(SinglePart, ListPartsDoublePIDs)
-				if Pos1st == None and Pos2nd == None:
-					ListPartNotMatchPID_ModuleId.append(SinglePart)
-					ListPartError.append(SinglePart)
-	
-	return ListPartsNoModuleIDs, ListPartsDoublePIDs, ListPartNotMatchPID_ModuleId, ListPartError
-	
-def FindEntityInListElementsFunc(EntityElement, ListElements):
-	
-	try:
-		Pos = ListElements.index(EntityElement)
-	except:
-		Pos = None
-	else:
-		Pos = Pos
-	
-	return Pos		
 
-def CreateNewGroupsFunc(NameGroup):
-	
-	NewGroups = base.NewGroup(NameGroup, '')
-	if NewGroups == None:
-		EntityGroup = base.NameToEnts(NameGroup)
-		
-		NewGroups = EntityGroup[0]
-	
-	return NewGroups
-	
-CheckMidPartTool()
+
