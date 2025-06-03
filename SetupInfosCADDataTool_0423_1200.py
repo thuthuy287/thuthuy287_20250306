@@ -44,8 +44,11 @@ def AcceptFunc(TopWindow, DataOnTop):
 		if len(ListNameAssy) >0:
 			DictBOMLines_InfosRevison = GetInfosOfFileBOMListFunc(PathBOMList)
 			if len(DictBOMLines_InfosRevison) >0:
-#				print(DictBOMLines_InfosRevison)
+#				print('OK')
 				SetupInfosToPartFunc(DictBOMLines_InfosRevison, ListNameAssy, ListIDsRenumber, ProBar)
+			else:
+				guitk.UserError('Khong tim thay keywords: BOM Line trong file BOM list')
+				return 1
 			
 	else:
 		guitk.UserError('Chọn lại đường dẫn chứa file CSV Renumber')
@@ -117,8 +120,9 @@ def GetInfosOfVersionIdOfPartsFunc(DictBOMLines_InfosRevison, NameOfProps, Token
 	for InfosKeyBOMLines, InfosValsRevison in DictBOMLines_InfosRevison.items():
 		if NameOfProps == None:
 			NameOfProps = TokensNameParts[0]
-			
-		if InfosKeyBOMLines.find(NameOfProps) != -1 and InfosKeyBOMLines.find(TokensNameParts[0]) != -1:
+		
+#		if InfosKeyBOMLines.find(NameOfProps) != -1 and InfosKeyBOMLines.find(TokensNameParts[0]) != -1:
+		if InfosKeyBOMLines.find(TokensNameParts[0]) != -1:
 			InfosRevisionIds = 'R' + InfosValsRevison[0]
 			InfosVersionIds = 'V' + InfosValsRevison[1]
 			if InfosVersionIds == 'V':
@@ -219,20 +223,34 @@ def GetInfosOfFileBOMListFunc(PathBOMList):
 	
 	DictBOMLines_InfosRevison = {}
 	InfosCsvBOMList = ReadInfoCsvFunc(PathBOMList)
-	for i in range(1, len(InfosCsvBOMList), 1):
-		TokensLinesBOM = InfosCsvBOMList[i].split(',')
-		InfosBOMLines = TokensLinesBOM[2]
-		InfosRevision = TokensLinesBOM[5]
+	
+	num_colum = None
+	top_row_bom = InfosCsvBOMList[0].split(',')
+	for k in range(0, len(top_row_bom), 1):
+		if top_row_bom[k].find('BOM Line') != -1:
+			num_colum = k
+	
+	if num_colum != None:
+		for i in range(1, len(InfosCsvBOMList), 1):
+			TokensLinesBOM = InfosCsvBOMList[i].split(',')
+			InfosBOMLines = TokensLinesBOM[num_colum]
+			
+			split_bom_lines = InfosBOMLines.split('-')
+			split_string_part_number = split_bom_lines[0].split('.')
+			if len(split_string_part_number)>1:
+				InfosVersion = split_string_part_number[1]
+			else:
+				InfosVersion = ''
+			
+			split_string_revision = split_string_part_number[0].split('/')
+			try:
+				InfosRevision = split_string_revision[1]
+			except:
+				InfosRevision = None
+			else:
+				InfosRevision = split_string_revision[1]
 		
-		InfosItemResision = TokensLinesBOM[6]
-		TokensItemsRevision = InfosItemResision.split(';')
-		TokensItemsRevisionByPoint = TokensItemsRevision[0].split('.')
-		if len(TokensItemsRevisionByPoint) >1:
-			InfosVersion = TokensItemsRevisionByPoint[1]
-		else:
-			InfosVersion = ''
-		
-		DictBOMLines_InfosRevison[InfosBOMLines] = [InfosRevision, InfosVersion]
+			DictBOMLines_InfosRevison[InfosBOMLines] = [InfosRevision, InfosVersion]
 	
 	return DictBOMLines_InfosRevison
 
@@ -275,4 +293,4 @@ def FindEntityInListElementsFunc(EntityElement, ListElements):
 	return Pos
 	
 #SetupInfosCADByManual()
-#1
+#2
