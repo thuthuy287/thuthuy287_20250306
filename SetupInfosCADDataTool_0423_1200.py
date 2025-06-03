@@ -1,98 +1,317 @@
- ANSA_Version                    = 19.1.3
-  
- name                            = 3mm_Qual_Crash_VINFAST     
-# Enabled/Disabled Ranges 
- Criterion_ranges_enabled        = OFF 
-# Shells Quality Criteria 
-Shells_Column_Headers            = Best, Good, Failed, Worst, 
-# Ranges  Shells                 = common_percentage, penalty, is_range_active...
-Ranges_shells                    =       0.,       0.,        1,      60.,       0.,        0,     100.,       1.,        1,     100.,      10.,        1, 
-# failed_index Shells            = failed_index
-failed_index_shells              =        2, 
-# Criterion [shells]             = flag, calculation : color| weight | value, percentage/ value, percentage/...
 # 
-aspect ratio [shells]            =  ON,          IDEAS :     0XFFFF00|     1. |           1.,    -1./           2.,    -1./           4.,    -1./           5.,    -1./ 
-skewness [shells]                = OFF,          IDEAS :     0X00FF00|     1. |           0.,    -1./         22.5,    -1./          65.,    -1./        BLANK,    -1./ 
-warping [shells]                 =  ON,          IDEAS :     0X00E6FF|     1. |           0.,    -1./           5.,    -1./        14.99,    -1./        BLANK,    -1./ 
-taper [shells]                   = OFF,        NASTRAN :     0X0028FF|     1. |           0.,    -1./         0.75,    -1./          0.3,    -1./        BLANK,    -1./ 
-crash time step [shells]         = OFF,        LS-DYNA :     0XAA00AA|     1. |           1.,    -1./       1.4E-6,    -1./        1.E-6,    -1./        BLANK,    -1./ 
-min height [shells]              = OFF,  QUADS & TRIAS :     0X0096AA|     1. |           3.,    -1./           0.,    -1./           0.,    -1./        BLANK,    -1./ 
-squish [shells]                  = OFF,                :     0X00AA00|     1. |           0.,    -1./         0.15,    -1./          0.3,    -1./        BLANK,    -1./ 
-jacobian [shells]                =  ON,        NASTRAN :     0X0000AA|     1. |           0.,    -1./          0.8,    -1./          0.6,    -1./        BLANK,    -1./ 
-min length [shells]              =  ON,                :     0XFF0000|     1. |           3.,    -1./           0.,    -1./         1.01,    -1./           2.,    -1./ 
-max length [shells]              =  ON,                :     0XFF0000|     1. |           3.,    -1./           0.,    -1./         5.99,    -1./        BLANK,    -1./ 
-min angle quads [shells]         =  ON,          IDEAS :     0XE14B00|     1. |          90.,    -1./          60.,    -1./        40.01,    -1./        BLANK,    -1./ 
-max angle quads [shells]         =  ON,          IDEAS :     0XE14B00|     1. |          90.,    -1./         115.,    -1./       124.99,    -1./         145.,    -1./ 
-min angle trias [shells]         =  ON,          IDEAS :     0XE14B00|     1. |          60.,    -1./          45.,    -1./        25.01,    -1./          25.,    -1./ 
-max angle trias [shells]         =  ON,          IDEAS :     0XE14B00|     1. |          60.,    -1./          90.,    -1./       109.99,    -1./         115.,    -1./ 
-stretch [shells]                 = OFF,                :     0X8E8E8E|     1. |           1.,    -1./         0.75,    -1./           0.,    -1./        BLANK,    -1./ 
-mid point deviation % [shells]   = OFF,                :     0X494949|     1. |           0.,    -1./         0.25,    -1./          0.1,    -1./        BLANK,    -1./ 
-mid point alignment % [shells]   = OFF,                :     0XFF9E53|     1. |          0.5,    -1./          0.4,    -1./          0.1,    -1./        BLANK,    -1./ 
-triangles % [shells]             =  ON,                :     0X55AA7F|     1. |           0.,    -1./        BLANK,    -1./         0.05,    -1./        BLANK,    -1./ 
-triangles per node [shells]      =  ON,                :     0X636300|     1. |           0.,    -1./           1.,    -1./           3.,    -1./           5.,    -1./ 
-mesh distortion [shells]         = OFF,                :     0XFF55FF|     1. |           0.,    -1./           2.,    -1./           0.,    -1./        BLANK,    -1./ 
-distance from geometry [shells]  = OFF,                :     0X9B30FF|     1. |           0.,    -1./           1.,    -1./           2.,    -1./        BLANK,    -1./ 
-distance from origin [shells]    = OFF,                :     0XADFF2F|     1. |           0.,    -1./           1.,    -1./           2.,    -1./        BLANK,    -1./ 
-multi violation [shells]         = OFF,                :     0XB7B700|     1. |           0.,    -1./           1.,    -1./           0.,    -1./        BLANK,    -1./ 
-growth ratio [shells]            = OFF,                :     0XAAAAFF|     1. |          0.8,    -1./           1.,    -1./          1.2,    -1./        BLANK,    -1./ 
-incomplete element [shells]      = OFF,                :     0X11BBDD|     1. |        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./ 
-h-ratio [shells]                 = OFF,                :     0X64BEFF|     1. |          0.5,    -1./          0.4,    -1./          0.3,    -1./          0.1,    -1./ 
-thickness to length [shells]     = OFF,                :     0XFFBD70|     1. |           0.,    -1./          0.2,    -1./          0.5,    -1./          0.8,    -1./ 
-heuristic shape [shells]         = OFF,                :     0X4D73FF|     1. |           1.,    -1./          0.3,    -1./          0.1,    -1./           0.,    -1./ 
+# ANSA Version
+#
+    ANSA_Version = 19.1.3
 # 
-# Solids Quality Criteria 
-Solids_Column_Headers            = Best, Good, Failed, Worst, 
-# Ranges Solids                  = common_percentage, penalty, is_range_active...
-Ranges_solids                    =       0.,       0.,        1,      60.,       0.,        0,     100.,       1.,        1,     100.,      10.,        1, 
-# failed_index Solids            = failed_index
-failed_index_solids              =        2, 
-# Criterion  [solids]            = flag, calculation : color| weight | value, percentage/ value, percentage/...
+# Mesh parameters
+#
+    mesh_parameters_name      = 3mm_Param_VINFAST
+    mesh_parameters_delimiter = ||
 # 
-aspect ratio [solids]            = OFF,        NASTRAN :     0XFFFF00|     1. |       1.2247,    -1./           3.,    -1./           6.,    -1./        BLANK,    -1./ 
-skewness [solids]                = OFF,         ABAQUS :     0X00FF00|     1. |           1.,    -1./         0.25,    -1./          0.1,    -1./        BLANK,    -1./ 
-warping [solids]                 = OFF,        NASTRAN :     0X00E6FF|     1. |           0.,    -1./           5.,    -1./          10.,    -1./        BLANK,    -1./ 
-crash time step [solids]         = OFF,        LS-DYNA :     0XAA00AA|     1. |           1.,    -1./       1.4E-6,    -1./        1.E-6,    -1./        BLANK,    -1./ 
-squish [solids]                  = OFF,                :     0X00AA00|     1. |           0.,    -1./         0.15,    -1./          0.3,    -1./        BLANK,    -1./ 
-jacobian [solids]                = OFF,           ANSA :     0X0000AA|     1. |           0.,    -1./          0.8,    -1./          0.8,    -1./        BLANK,    -1./ 
-min length [solids]              = OFF,                :     0XFF0000|     1. |           3.,    -1./           0.,    -1./           4.,    -1./           2.,    -1./ 
-max length [solids]              = OFF,                :     0XFF0000|     1. |           3.,    -1./           0.,    -1./          12.,    -1./        BLANK,    -1./ 
-min angle tetras [solids]        = OFF,         ABAQUS :     0XE14B00|     1. |          60.,    -1./          40.,    -1./          20.,    -1./        BLANK,    -1./ 
-max angle tetras [solids]        = OFF,         ABAQUS :     0XE14B00|     1. |          60.,    -1./          90.,    -1./         120.,    -1./        BLANK,    -1./ 
-min angle pentas [solids]        = OFF,         ABAQUS :     0XE14B00|     1. |          60.,    -1./          45.,    -1./          30.,    -1./        BLANK,    -1./ 
-max angle pentas [solids]        = OFF,         ABAQUS :     0XE14B00|     1. |          60.,    -1./          90.,    -1./         120.,    -1./        BLANK,    -1./ 
-min angle hexas [solids]         = OFF,         ABAQUS :     0XE14B00|     1. |          90.,    -1./          60.,    -1./          30.,    -1./        BLANK,    -1./ 
-max angle hexas [solids]         = OFF,         ABAQUS :     0XE14B00|     1. |          90.,    -1./         110.,    -1./         140.,    -1./        BLANK,    -1./ 
-stretch [solids]                 = OFF,                :     0X8E8E8E|     1. |           1.,    -1./         0.75,    -1./           0.,    -1./        BLANK,    -1./ 
-collapse [solids]                = OFF,                :     0XA05AE6|     1. |           1.,    -1./          0.9,    -1./           0.,    -1./        BLANK,    -1./ 
-mid point deviation % [solids]   = OFF,                :     0X494949|     1. |           0.,    -1./         0.25,    -1./          0.1,    -1./        BLANK,    -1./ 
-mid point alignment % [solids]   = OFF,                :     0XFF9E53|     1. |          0.5,    -1./          0.4,    -1./          0.1,    -1./        BLANK,    -1./ 
-multi violation [solids]         = OFF,                :     0XB7B700|     1. |           0.,    -1./           1.,    -1./           0.,    -1./        BLANK,    -1./ 
-non orthogonality [solids]       = OFF,       OPENFOAM :     0XBA7C5D|     1. |           0.,    -1./          50.,    -1./          70.,    -1./        BLANK,    -1./ 
-growth ratio [solids]            = OFF,           ANSA :     0XAAAAFF|     1. |          0.8,    -1./           1.,    -1./          1.2,    -1./        BLANK,    -1./ 
-negative volume [solids]         = OFF,        PARTIAL :     0X11FFAA|     1. |        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./ 
-incomplete element [solids]      = OFF,                :     0X11BBDD|     1. |        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./ 
-left handed [solids]             = OFF,                :     0XBABA9B|     1. |        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./        BLANK,    -1./ 
-min height [solids]              = OFF,                :     0X0096AA|     1. |           3.,    -1./           0.,    -1./           0.,    -1./           0.,    -1./ 
-h-ratio [solids]                 = OFF,                :     0X64BEFF|     1. |        0.333,    -1./          0.2,    -1./         0.15,    -1./         0.12,    -1./ 
-determinant [solids]             = OFF,       OPENFOAM :     0X55557F|     1. |        0.333,    -1./          0.1,    -1./        0.001,    -1./       0.0001,    -1./ 
-layers quality [solids]          = OFF,                :     0XAA007F|     1. |           0.,    -1./          0.5,    -1./           1.,    -1./           2.,    -1./ 
-face tetquality [solids]         = OFF,                :     0XBB117F|     1. |          10.,    -1./        0.001,    -1./       1.E-30,    -1./           0.,    -1./ 
-min volume [solids]              = OFF,                :     0X74001B|     1. |         125.,    -1./           0.,    -1./           0.,    -1./           0.,    -1./ 
-solver custom [solids]           = OFF,            TAU :     0XAA104D|     1. |           1.,    -1./          0.2,    -1./          0.1,    -1./           0.,    -1./ 
-edge point angle [solids]        = OFF,        NASTRAN :     0X6E6300|     1. |         180.,    -1./         160.,    -1./         150.,    -1./         130.,    -1./ 
-edge point length ratio [solids] = OFF,        NASTRAN :     0XC3B000|     1. |           1.,    -1./         0.75,    -1./          0.5,    -1./         0.25,    -1./ 
-twist angle [solids]             = OFF,                :     0XFFA1E6|     1. |           0.,    -1./         22.5,    -1./          45.,    -1./          60.,    -1./ 
-# Jacobian User Definition Data 
-jacobian_criterion_value = 0
-jacobian_gauss_points_first_order_tetra = 0
-jacobian_gauss_points_first_order_penta = 3
-jacobian_gauss_points_first_order_hexa = 0
-jacobian_gauss_points_first_order_pyramid = 2
-jacobian_gauss_points_first_order_tria = 3
-jacobian_gauss_points_first_order_quad = 1
-jacobian_gauss_points_second_order_tetra = 3
-jacobian_gauss_points_second_order_penta = 3
-jacobian_gauss_points_second_order_hexa = 3
-jacobian_gauss_points_second_order_pyramid = 2
-jacobian_gauss_points_second_order_tria = 3
-jacobian_gauss_points_second_order_quad = 2
+# Shell Mesh
+#
+# 
+# General Mesh
+#
+    mesh_type               = general
+    element_type            = mixed
+    element_order           = first
+    existing_mesh_treatment = erase
+    target_element_length   = 3
+    general_min_target_len  = 1.01
+    general_max_target_len  = 5.99
+# 
+# CFD
+# 
+    cfd_interior_growth_rate             = 1.2
+    cfd_distortion_angle                 = 20.
+    cfd_min_length                       = 1.
+    cfd_max_length                       = 100.
+    cfd_auto_length_calculation          = false
+    cfd_enhanced_curvature_sampling_flag = false
+    cfd_sharpen_edges_angle_limit        = 30.
+    cfd_convex_sharp_edges_length_flag   = false
+    cfd_convex_sharp_edges_length        = 10.
+    cfd_convex_sharp_edges_length_mode   = absolute
+    cfd_concave_sharp_edges_length_flag  = false
+    cfd_concave_sharp_edges_length       = 10.
+    cfd_concave_sharp_edges_length_mode  = absolute
+    cfd_refine_trailing_edges_ratio_flag = false
+    cfd_refine_trailing_edges_ratio      = 1.
+    cfd_refine_trailing_edges_angle      = 60.
+    cfd_free_edges_length_flag           = false
+    cfd_free_edges_length                = 10.
+    cfd_free_edges_length_mode           = absolute
+    cfd_pid_proximity                    = false
+    cfd_proximity_based_on               = whole_model
+    cfd_self_proximity                   = false
+    cfd_max_angle_between_normals        = 40.
+    cfd_length_to_gap_refinement_factor  = 0.3
+    cfd_convex_curvature_treatment       = false
+    cfd_reduce_max_length                = true
+    cfd_reduce_local_length              = false
+    cfd_orientation_based_refinement     = false
+    cfd_reduction_factor                 = 0.5
+    cfd_max_radius_of_curvature          = 1000.
+    cfd_orientation_vector_dx            = 0.
+    cfd_orientation_vector_dy            = 0.
+    cfd_orientation_vector_dz            = -1.
+    cfd_max_angle_deviation              = 60.
+# 
+# STL
+# 
+    stl_distortion_distance     = 0.2
+    stl_max_length              = 0.
+    stl_min_length              = 0.05
+    stl_distortion_angle_value  = 20.
+    stl_distortion_angle_flag   = false
+# 
+# Feature options
+# 
+    bm_features_handling   = Recognize features
+    orientation_handling   = use_existing
+    orientation_definition = grey outside volume
+# 
+# Freeze
+# 
+    freeze_single_bounds = true
+    freeze_triple_bounds = false
+    freeze_perimeters    = false
+    freeze_line_elements = false
+    freeze_named_grids   = false
+    freeze_holes         = false
+# 
+# Remove triangles from
+# 
+    remove_triangle_from_spots     = true
+    remove_triangle_from_int_perim = true
+    remove_triangle_from_ext_perim = true
+# 
+# Zones options
+# 
+    attach_zones_on_perimeters              = 0.5
+    create_perims_on_zones                  = false
+    create_ortho_trias_on_zones             = false
+    create_zones_only_on_flat_areas         = true
+    create_corner_quads_at_zones            = false
+# 
+# Flanges 3D options
+# 
+    flanges_3d_refine_perimeters = true
+# 
+# Fillets options
+# 
+    create_mapped_mesh_in_fillets   = true
+# 
+# Holes 3D options
+# 
+    create_ortho_trias_on_holes_3d = true
+# 
+# Perimeters
+#
+    cfd_fix_violating_shells_by_smoothing_over_perimeters = false
+    defeaturing_length                                    = 0.5
+    paste_triple_bounds_distance                          = 0.5
+    flat_perimeters_defeaturing_level                     = fine
+    maintain_sharp_edge_ribs                              = false
+    maintain_set_or_include_bounds                        = true
+    set_perimeters_treatment                              = forbid_join
+    dont_release_already_joined_perims                    = false
+    create_perims_on_symmetry_plane                       = false
+    cut_mesh_on_symmetry_plane                            = false
+    freeze_segments_in_symmetry                           = true
+    recognize_property_bounds_as_perimeters               = true
+    recognize_part_bounds_as_perimeters                   = true
+    recognize_feature_line_bounds_as_perimeters           = true
+    recognize_feature_line_bounds_option                  = Angle
+    recognize_feature_line_bounds_angle                   = 5.
+    recognize_feature_line_bounds_corner_angle            = 15.
+    user_defined_feature_lines                            = true
+    recognize_feature_line_auto_close                     = true
+    treat_perimeters                                      = false
+    rule_perimeter                                        = default = false || active = true || sides = none || angle = none || pid = - || part = - || sets_names = none || treatment = 1
+    rule_perimeter                                        = default = false || active = true || sides = none || angle = none || pid = - || part = - || sets_names = none || treatment = 1
+    rule_perimeter                                        = default = true || active = false || sides = none || angle = none || pid = - || part = - || sets_names = none || treatment = 2
+    treatment_perimeter                                   = 1 || name = none || join = true || join_option = forbid || spacing = false || spacing_option = auto || number_or_length = 0 || zones = false || zones_option = off || specific_zones = none || radial_offset = false || blended = false || smooth_zones = full || proximity_distance_factor = 0. || proximity_distance_option = * last height || cut_faces_on_zones = false || first_height_option = Absolute first height || first_height_value = 0.1 || growth_factor = 1.2 || zones_number = 5 || max_aspect = 0.4 || separate_angle = 90. || connect_angle = 60. || element_type = quad
+    treatment_perimeter                                   = 2 || name = none || join = false || join_option = auto || spacing = true || spacing_option = auto || number_or_length = 0 || zones = false || zones_option = off || specific_zones = none || radial_offset = false || blended = false || smooth_zones = full || proximity_distance_factor = 0. || proximity_distance_option = * last height || cut_faces_on_zones = false || first_height_option = Absolute first height || first_height_value = 0.1 || growth_factor = 1.2 || zones_number = 5 || max_aspect = 0.4 || separate_angle = 90. || connect_angle = 60. || element_type = quad
+# 
+# Fillets
+# 
+    recognize_fillets                   = true
+    recognize_fillets_max_radius        = 30.
+    recognize_fillets_min_angle         = 5.
+    treat_fillets                       = true
+    rule_fillet                         = default = false || active = true || convexity = none || radius = none || width = 0-3 || angle = none || treatment = 15
+    rule_fillet                         = default = false || active = true || convexity = none || radius = none || width = 3-5.5 || angle = none || treatment = 16
+    rule_fillet                         = default = false || active = true || convexity = none || radius = none || width = 5.5-8.5 || angle = none || treatment = 17
+    rule_fillet                         = default = true || active = true || convexity = none || radius = none || width = none || angle = none || treatment = 18
+    treatment_fillet                    = 15 || name = none || defeaturing = false || defeaturing_option = off || forbid_join_perimeters_created_from_split = false || join_upper_lower_perimeters_during_split = false || length = false || length_value = none || rows = true || rows_option = specific || custom_distortion = false || distortion_distance = 20% || distortion_angle = 0. || even_rows = false || rows_number = 1
+    treatment_fillet                    = 16 || name = none || defeaturing = false || defeaturing_option = split || forbid_join_perimeters_created_from_split = false || join_upper_lower_perimeters_during_split = true || length = false || length_value = none || rows = true || rows_option = specific || custom_distortion = false || distortion_distance = 20% || distortion_angle = 0. || even_rows = false || rows_number = 2
+    treatment_fillet                    = 17 || name = none || defeaturing = false || defeaturing_option = split || forbid_join_perimeters_created_from_split = false || join_upper_lower_perimeters_during_split = true || length = false || length_value = none || rows = true || rows_option = specific || custom_distortion = false || distortion_distance = 20% || distortion_angle = 0. || even_rows = false || rows_number = 3
+    treatment_fillet                    = 18 || name = none || defeaturing = false || defeaturing_option = split || forbid_join_perimeters_created_from_split = false || join_upper_lower_perimeters_during_split = true || length = false || length_value = none || rows = true || rows_option = auto || custom_distortion = false || distortion_distance = 20% || distortion_angle = 0. || even_rows = false || rows_number = 0
+# 
+# Chamfers
+# 
+    recognize_chamfers           = false
+    recognize_chamfers_min_angle = 20.
+    recognize_chamfers_max_angle = 70.
+    recognize_chamfers_max_width = 1.
+    treat_chamfers               = false
+    rule_chamfer                 = default = true || active = true || width = none || angle = none || treatment = 19
+    treatment_chamfer            = 19 || name = none || defeaturing = true || defeaturing_option = off
+# 
+# Flanges 2D
+#
+    recognize_flanges_2d                      = true
+    recognize_flanges_2d_proximity            = true
+    recognize_flanges_2d_proximity_option     = factor
+    recognize_flanges_2d_proximity_factor     = 1.2
+    recognize_flanges_2d_proximity_distance   = 2.5
+    recognize_flanges_2d_proximity_angle      = 10.
+    recognize_flanges_2d_min_width            = 0.
+    recognize_flanges_2d_max_width            = 50.
+    recognize_flanges_2d_connections          = false
+    recognize_flanges_2d_connections_option   = Specified distance
+    recognize_flanges_2d_connections_distance = 2.5
+    treat_flanges_2d                          = true
+    rule_flange_2d                            = default = false || active = true || width = <3 || proximity = >=50 || connections = - || treatment = 20
+    rule_flange_2d                            = default = false || active = true || width = 3-5.5 || proximity = >=50 || connections = - || treatment = 21
+    rule_flange_2d                            = default = false || active = true || width = >5.5 || proximity = >=50 || connections = - || treatment = 22
+    rule_flange_2d                            = default = true || active = false || width = none || proximity = none || connections = - || treatment = 23
+    treatment_flange_2d                       = 20 || name = none || length = false || length_value = none || rows = true || rows_option = number || rows_number = 1
+    treatment_flange_2d                       = 21 || name = none || length = false || length_value = none || rows = true || rows_option = number || rows_number = 2
+    treatment_flange_2d                       = 22 || name = none || length = false || length_value = none || rows = true || rows_option = number || rows_number = 3
+    treatment_flange_2d                       = 23 || name = none || length = true || length_value = 0.5*L || rows = false || rows_option = number || rows_number = none
+# 
+# Flanges 3D
+# 
+    recognize_flanges_3d                    = true
+    recognize_flanges_3d_proximity          = false
+    recognize_flanges_3d_proximity_distance = 0.5
+    recognize_flanges_3d_proximity_angle    = 5.
+    treat_flanges_3d                        = false
+    rule_flange_3d                          = default = true || active = true || area = none || proximity = none || treatment = 29
+    treatment_flange_3d                     = 29 || name = none || length = true || length_value = 0.5*L
+# 
+# Holes 2D
+#
+    recognize_holes_2d                     = false
+    recognize_holes_2d_external_perimeters = true
+    recognize_holes_2d_proximity           = false
+    recognize_holes_2d_proximity_distance  = 10.
+    recognize_holes_2d_proximity_angle     = 10.
+    recognize_holes_2d_connections         = true
+    recognize_holes_2d_connections_option  = bolt
+    treat_holes_2d                         = false
+    rule_hole_2d                           = default = false || active = true || shape = Round || diam_or_size = <9.8 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 3
+    rule_hole_2d                           = default = false || active = true || shape = Oval || diam_or_size = <5.01 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 4
+    rule_hole_2d                           = default = false || active = true || shape = Rectangular|Concyclic || diam_or_size = <4.01 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 5
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 7.5-11 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 6
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 7.5-11 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = true || treatment = 7
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 11-13 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 8
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 11-13 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = true || treatment = 9
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 13-15 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 10
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 13-15 || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = true || treatment = 11
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 15.-32. || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 12
+    rule_hole_2d                           = default = false || active = true || shape = none || diam_or_size = 15.-32. || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = true || treatment = 13
+    rule_hole_2d                           = default = true || active = true || shape = none || diam_or_size = none || size_2 = none || ratio = none || eq_diameter = none || proximity = - || connection = - || treatment = 14
+    treatment_hole_2d                      = 3 || name = none || defeaturing = true || defeaturing_option = fill || nodes_number = false || number_value = auto || treat_as_round = false || zones = false || zones_option = off || specific_zones = none || target_diam_or_size = false || target_diam_or_size_value = none
+    treatment_hole_2d                      = 4 || name = none || defeaturing = true || defeaturing_option = fill || nodes_number = false || number_value = auto || treat_as_round = false || zones = false || zones_option = specific || specific_zones = none || target_diam_or_size = false || target_diam_or_size_value = none
+    treatment_hole_2d                      = 5 || name = none || defeaturing = true || defeaturing_option = fill || nodes_number = false || number_value = auto || treat_as_round = false || zones = false || zones_option = specific || specific_zones = none || target_diam_or_size = false || target_diam_or_size_value = none
+    treatment_hole_2d                      = 6 || name = none || defeaturing = false || defeaturing_option = fill || nodes_number = true || number_value = 4 || treat_as_round = true || zones = false || zones_option = specific || specific_zones = none || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 7 || name = none || defeaturing = false || defeaturing_option = fill || nodes_number = true || number_value = 4 || treat_as_round = true || zones = true || zones_option = specific || specific_zones = width = D/2 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 8 || name = none || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = 6 || treat_as_round = true || zones = false || zones_option = specific || specific_zones = width = W=D/2 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 9 || name = none || defeaturing = false || defeaturing_option = fill || nodes_number = true || number_value = 6 || treat_as_round = true || zones = true || zones_option = specific || specific_zones = width = D/2 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 10 || name = none || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = 8 || treat_as_round = true || zones = false || zones_option = specific || specific_zones = width = W=D/2 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 11 || name = none || defeaturing = false || defeaturing_option = fill || nodes_number = true || number_value = 8 || treat_as_round = true || zones = true || zones_option = specific || specific_zones = width = D/2 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 12 || name = none || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = auto || treat_as_round = true || zones = false || zones_option = specific || specific_zones = width = W=D/4,width = W=D/4 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 13 || name = none || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = auto || treat_as_round = true || zones = false || zones_option = specific || specific_zones = width = W=D/4,width = W=D/4 || target_diam_or_size = true || target_diam_or_size_value = D
+    treatment_hole_2d                      = 14 || name = none || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = auto || treat_as_round = true || zones = false || zones_option = off || specific_zones = none || target_diam_or_size = true || target_diam_or_size_value = D
+# 
+# Holes 3D
+# 
+    recognize_holes_3d                    = false
+    recognize_holes_3d_connections        = false
+    recognize_holes_3d_connections_option = bolt
+    treat_holes_3d                        = false
+    rule_hole_3d                          = default = true || active = true || diameter = none || height = none || straight = - || blind = - || connection = - || treatment = 28
+    treatment_hole_3d                     = 28 || defeaturing = false || defeaturing_option = off || nodes_number = true || number_value = auto || zones = false || zones_option = off || specific_zones = none
+# 
+# Logos
+#
+    recognize_logos        = false
+    recognize_logos_height = 0.
+    recognize_logos_size   = 0.
+    treat_logos            = false
+    rule_logo              = default = true || active = true || height = none || size = none || treatment = 27
+    treatment_logo         = 27 || name = none || defeaturing = true || defeaturing_option = remove
+# 
+# Stamps
+#
+    recognize_stamps        = false
+    recognize_stamps_height = 10.
+    recognize_stamps_size   = 15.
+    treat_stamps            = false
+    rule_stamp              = default = false || active = true || height = <3 || size = none || treatment = 24
+    rule_stamp              = default = false || active = true || height = 3-10 || size = 10-15 || treatment = 25
+    rule_stamp              = default = false || active = true || height = 3-10 || size = >15 || treatment = 26
+    rule_stamp              = default = true || active = true || height = none || size = none || treatment = 24
+    treatment_stamp         = 24 || name = none || defeaturing = true || defeaturing_option = remove
+    treatment_stamp         = 25 || name = none || defeaturing = true || defeaturing_option = auto
+    treatment_stamp         = 26 || name = none || defeaturing = true || defeaturing_option = auto
+# 
+# Ribs
+#
+    recognize_ribs_2d = true
+# 
+# Fix Quality
+#
+    fix_elements_general_flag           = true
+    split_remain_viol_quads_flag        = false
+    fix_minimum_length_in_fillets       = true
+    fix_minimum_length_in_flanges_2d    = true
+    allow_hole_2d_zones_deformation     = false
+    create_perfect_hole_2d_zone         = false
+    zones_around_violating              = 2
+    maximum_distance_from_surface       = 0.01
+    maximum_distance_from_perimeter     = 0.5
+    maximum_distance_from_triple_bounds = 0.5
+# 
+# Volume Mesh
+#
+# 
+# Volume Fix Quality
+# 
+    fix_solid_elements_general_flag       = false
+    freeze_non_visible_shells             = false
+    unconstrained_2nd_order_nodes         = false
+    fix_solid_freeze_line_elements        = true
+    number_of_affected_solid_zones        = 3
+    fix_volume_external_bounds            = constrained
+    maximum_distance_from_external_bounds = 0.1*local
+    fix_volume_pid_bounds                 = unconstrained
+    maximum_distance_from_pid_bounds      = 0.1*local
+# 
+# CONS Resolution
+# 
+    perimeter_length                   = 3.
+    distortion-distance                = 20.%
+    distortion-angle                   = 45.
+# 
+# Unstructured Volume Mesh Options
+# 
+    create_volume_mesh            = false
+    tetras_algorithm              = Tetra Rapid
+    tetras_criterion_type         = NASTRAN_Aspect_Ratio
+    tetras_criterion_value        = 4.
+    tetras_max_growth_rate        = 1.2
+    refine_shell_mesh_proximities = false
+    tetras_max_elem_length        = 0.
+    hexa_coordinate_system        = 0
+    hexa_buffer_zones             = 3
+    create_pyramids               = true
+    force2rows                    = false
+    frozen_entities_set_id        = 0
+    trans_pnt_offs                = true
+    do_not_violate_max_len        = false
+    light_volume_representation   = false
