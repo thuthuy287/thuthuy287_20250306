@@ -3,36 +3,22 @@ import os
 import ansa
 from ansa import *
 
-DeckCurrent = constants.OPENFOAM
-@session.defbutton('1_CAD ASSEMBLY', 'MiddleSkinTool','Get Middle Faces On Parts')
-def MiddleSkinTool():
-	# Need some documentation? Run this with F5
-	PropsVisCollect = base.CollectEntities(DeckCurrent, None, ['__PROPERTIES__'], filter_visible = True)
-	if len(PropsVisCollect) >0:
-		ListErrorSkin = []
-		for i in range(0, len(PropsVisCollect), 1):
-			FacesOnPropsVis = base.CollectEntities(DeckCurrent, PropsVisCollect[i], ['FACE'])
-			Status_Skin = base.Skin(apply_thickness = True,
-							new_pid = False,
-							offset_type = 3,
-							ok_to_offset = True,
-							max_thickness = 6,
-							delete = True,
-							entities = FacesOnPropsVis,
-#							similarity,
-							treat_chamfers = True,
-							new_part = False,
-#							part,
-#							property,
-							deviation = 2)
-			
-			if Status_Skin == 0:
-				ListErrorSkin.append(PropsVisCollect[i])
-		
-		if len(ListErrorSkin) >0:
-			base.Or(ListErrorSkin)
-			base.NewGroupFromVisible('Skin Part Error_' + str(ListErrorSkin[0]._id), '', create_links = 'yes')	
+#@session.defbutton('99_OTHER TOOL', 'Thickness00','Set độ dày của shell về giá trị 0')
+deck_infos = constants.NASTRAN
+def SetThickness00():
+	AllsShellInModel = base.CollectEntities(deck_infos, None, ['SHELL'])
+	if len(AllsShellInModel) >0:
+		ListShellsErrorThickness = []
+		for i in range(0, len(AllsShellInModel), 1):
+			type_of_shells = AllsShellInModel[i].get_entity_values(deck_infos, ['type'])
+			if type_of_shells['type'] == 'CTRIA3':
+				AllsShellInModel[i].set_entity_values(deck_infos, {'T1': 0, 'T2': 0, 'T3': 0})
+			if type_of_shells['type'] == 'CQUAD4':
+				AllsShellInModel[i].set_entity_values(deck_infos, {'T1': 0, 'T2': 0, 'T3': 0, 'T4': 0})
+	
+	guitk.UserError('....Done.')
+	
 
-#MiddleSkinTool()
+SetThickness00()
 
 
