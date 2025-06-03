@@ -115,8 +115,10 @@ def GetInfosOfVersionIdOfPartsFunc(DictBOMLines_InfosRevison, NameOfProps, Token
 	InfosVersionIds = None
 	
 	for InfosKeyBOMLines, InfosValsRevison in DictBOMLines_InfosRevison.items():
+		if NameOfProps == None:
+			NameOfProps = TokensNameParts[0]
+			
 		if InfosKeyBOMLines.find(NameOfProps) != -1 and InfosKeyBOMLines.find(TokensNameParts[0]) != -1:
-#			print(NameOfProps, TokensNameParts[0])
 			InfosRevisionIds = 'R' + InfosValsRevison[0]
 			InfosVersionIds = 'V' + InfosValsRevison[1]
 			if InfosVersionIds == 'V':
