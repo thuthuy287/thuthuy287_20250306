@@ -1251,19 +1251,217 @@ def DivideGroupsShellsArcFunc(InfosElemsIsolate):
 DividePropsOfArcWeldTool()
 DivideThicknessOfArcWeldTool_0611
 
+D:\Kyty180389\Script\23.DividePropsOfArcWeld
 
 
 
 
 
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+deck_infos = constants.NASTRAN
+@session.defbutton('6_CONNECTION', 'ChangeConnectionNVHToAbaqusTool','Convert liên kết dạng RBE2-BEAM-RBE2 sang RBE2 ....')
+def ChangeConnectionNVHToAbaqusTool():
+	# Need some documentation? Run this with F5
+	BeamsSelected = base.PickEntities(deck_infos, ['CBEAM'])
+	if BeamsSelected != None:
+#		print(len(BeamsSelected))
+		dict_infos_beams = base.IsolateConnectivityGroups	(entities = BeamsSelected, separate_at_blue_bounds = True, separate_at_pid_bounds = True)
+		if dict_infos_beams != None:
+			base.Or(BeamsSelected)
+			base.Neighb('1')
+			AllRbe2Visible = base.CollectEntities(deck_infos, None, ['RBE2'], filter_visible = True)
+			if len(AllRbe2Visible) >0:
+				EntityClear = []
+				for infos_group_name, infos_group_beam in dict_infos_beams.items():
+					ListNodesRbe2ReferenElemsBeams, ListEntityElemsNeedClear = FindRbe2ReferenElementBeamFunc(infos_group_beam, AllRbe2Visible)
+					if len(ListNodesRbe2ReferenElemsBeams) >0:
+						CreateEntityRbe2ForAbaqusStandardFunc(ListNodesRbe2ReferenElemsBeams)
+						EntityClear.extend(ListEntityElemsNeedClear)
+				
+				if len(EntityClear) >0:
+					base.DeleteEntity(EntityClear, True)
+		
+		guitk.UserError('Done........')
+
+def CreateEntityRbe2ForAbaqusStandardFunc(ListEntityNodesRbe2):
+	
+	NumOfNodesRbe2 = len(ListEntityNodesRbe2) + 1
+	
+	InfosIdsNodesRbe2 = []
+	InfosAxisNodesX = []
+	InfosAxisNodesY = []
+	InfosAxisNodesZ = []
+	
+	for i in range(0, len(ListEntityNodesRbe2), 1):
+		InfosIdsNodesRbe2.append(ListEntityNodesRbe2[i]._id)
+		AxisNodesRbe2 = ListEntityNodesRbe2[i].position
+		InfosAxisNodesX.append(AxisNodesRbe2[0])
+		InfosAxisNodesY.append(AxisNodesRbe2[1])
+		InfosAxisNodesZ.append(AxisNodesRbe2[2])
+	
+	AxisCOGRbe2_X = sum(InfosAxisNodesX)/len(InfosAxisNodesX)
+	AxisCOGRbe2_Y = sum(InfosAxisNodesY)/len(InfosAxisNodesY)
+	AxisCOGRbe2_Z = sum(InfosAxisNodesZ)/len(InfosAxisNodesZ)
+	
+	NodesCOGRbe2 = base.CreateEntity(deck_infos, 'GRID', {'X1': AxisCOGRbe2_X, 'X2': AxisCOGRbe2_Y, 'X3': AxisCOGRbe2_Z})
+	
+	Rbe2ForAbaqus = base.CreateEntity(deck_infos, 'RBE2', {'GN': NodesCOGRbe2._id, 'CM': 123456, 'No.of.Nodes': 3, 'GM1': InfosIdsNodesRbe2[0],  'GM2': InfosIdsNodesRbe2[1]})	
+	if Rbe2ForAbaqus != None:
+#		InfosIdsNodesRbe2.remove(InfosIdsNodesRbe2[0])
+#		InfosIdsNodesRbe2.remove(InfosIdsNodesRbe2[1])
+		base.BranchEntity(Rbe2ForAbaqus, InfosIdsNodesRbe2, 'add')
+		base.ResetSpiderCog(Rbe2ForAbaqus, 'cog')
+					
+def FindRbe2ReferenElementBeamFunc(ElementBeams, ListElemsRbe2Vis):
+	
+	ListNodesRbe2ReferenElemsBeams = []
+	ListEntityElemsNeedClear = []
+	ListEntityElemsNeedClear.extend(ElementBeams)
+	
+	NodesOfElemsBeam = base.CollectEntities(deck_infos, ElementBeams, ['GRID'])
+	for i in range(0, len(ListElemsRbe2Vis), 1):
+		NodesOnElemsRbe2 = base.CollectEntities(deck_infos, ListElemsRbe2Vis[i], ['GRID'])
+		ValsElemsRbe2 = ListElemsRbe2Vis[i].get_entity_values(deck_infos, ['GN'])
+		infos_COG_rbe2 = ValsElemsRbe2['GN']
+
+		StatusSearchCOGRbe2 = FindEntityInListElementsFunc(infos_COG_rbe2, NodesOfElemsBeam)
+		if StatusSearchCOGRbe2 != None:
+			NodesOnElemsRbe2.remove(infos_COG_rbe2)
+#			print(NodesOnElemsRbe2)
+			ListNodesRbe2ReferenElemsBeams.extend(NodesOnElemsRbe2)
+			ListEntityElemsNeedClear.append(ListElemsRbe2Vis[i])
+	
+	return ListNodesRbe2ReferenElemsBeams, ListEntityElemsNeedClear
+
+def FindEntityInListElementsFunc(EntityElement, ListElements):
+	
+	try:
+		Pos = ListElements.index(EntityElement)
+	except:
+		Pos = None
+	else:
+		Pos = Pos
+	
+	return Pos	
+	
+#ChangeConnectionNVHToAbaqusTool()
+ChangeConnectionNVHToAbaqusTool_0523
+
+D:\Kyty180389\Script\25.ChangeConnectionNVHToAbaqus
 
 
 
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+#@session.defbutton('4_MATERIAL', 'ConvertMatOfNVHToAbaqusTool',' Chuyển vật liệu từ môi trường Nastran sang Abaqus....')
+def ConvertMatOfNVHToAbaqusTool():
+	# Need some documentation? Run this with F5
+	AllPropsModel = base.CollectEntities(constants.NASTRAN, None, ['PSHELL', 'PSOLID'], filter_visible = True)
+	if len(AllPropsModel) >0:
+		for i in range(0, len(AllPropsModel), 1):
+			mats_reference_props_nvh = GetInfosMatOnPropsFunc(AllPropsModel[i])
+			
+			if mats_reference_props_nvh != None:
+				ChangeTypeMatsToAbaqusFunc(mats_reference_props_nvh, AllPropsModel[i])
+	
+	guitk.UserError('Done....')			
+
+def ChangeTypeMatsToAbaqusFunc(mats_reference_props_nvh, EntityPropsChange):
+	
+	vals_mats_referen_nvh = mats_reference_props_nvh.get_entity_values(constants.NASTRAN, ['MID', 'Name', 'E', 'NU', 'RHO'])
+#	print(vals_mats_referen_nvh)
+	mats_referen_abaqus = base.GetEntity(constants.ABAQUS, 'MATERIAL', vals_mats_referen_nvh['MID'])
+	if mats_referen_abaqus == None:
+		mats_referen_abaqus = base.CreateEntity(constants.ABAQUS, 'MATERIAL', {'MID': vals_mats_referen_nvh['MID']})
+	
+#	print(mats_referen_abaqus)
+	mats_referen_abaqus.set_entity_values(constants.ABAQUS, {'Name': vals_mats_referen_nvh['Name'], '*DENSITY': 'YES', 'DENS': vals_mats_referen_nvh['RHO'], '*ELASTIC': 'YES', 'YOUNG': vals_mats_referen_nvh['E'], 'POISSON': vals_mats_referen_nvh['NU']})
+	EntityPropsChange.set_entity_values(constants.ABAQUS, {'MID': mats_referen_abaqus._id})				
+				
+def GetInfosMatOnPropsFunc(EntityProps):
+	
+	mats_reference_props_nvh = None
+	vals_props = EntityProps.get_entity_values(constants.NASTRAN, ['__type__'])
+	if vals_props['__type__'] == 'PSOLID':
+		vals_mats_nvh = EntityProps.get_entity_values(constants.NASTRAN, ['MID'])
+		mats_reference_props_nvh = vals_mats_nvh['MID']
+	else:
+		vals_mats_nvh = EntityProps.get_entity_values(constants.NASTRAN, ['MID1'])
+		mats_reference_props_nvh = vals_mats_nvh['MID1']
+	
+	return mats_reference_props_nvh	
+	
+ConvertMatOfNVHToAbaqusTool()
+ConvertMatOfNVHToAbaqusTool_0701_1500
+D:\Kyty180389\Script\26.ConvertMaterialNVHToAbaqus
 
 
+# PYTHON script
+import os
+import ansa
+from ansa import *
 
+deck_infos = constants.LSDYNA
+def ConvertShellsToRigids2NodesTool():
+	# Need some documentation? Run this with F5
+	for i in range(0, 1000, 1):
+		ShellsConvert = base.PickEntities(deck_infos, ['ELEMENT_SHELL'])
+		if ShellsConvert != None:
+			infos_faces_on_shells = mesh.FEMToSurf(shells = ShellsConvert, delete = False, ret_ents = True)
+			if len(infos_faces_on_shells) >0:
+				infos_cons_double = FindConsDoubleFunc(infos_faces_on_shells)
+				if len(infos_cons_double) >0:
+					CreateRigids2NodesOnDoubleConsFunc(infos_cons_double)
+					mesh.AutoPaste(visible = True, project_on_geometry = False, isolate = False, move_to = 'geometry pos', preserve_id = 'max', distance = 0.1, allow_element_collapse = False)
+			
+				base.DeleteEntity(infos_faces_on_shells, True)
+		else:
+			return 1
+	
+	
+def CreateRigids2NodesOnDoubleConsFunc(infos_cons_double):
+	
+	for i in range(0, len(infos_cons_double), 1):
+		infos_nodes_on_double_cons = []
+		HotPointsOnDoubleCons = base.CollectEntities(deck_infos, infos_cons_double[i], ['HOT POINT'])
+		for k in range(0, len(HotPointsOnDoubleCons), 1):
+			axis_of_hotpoints = HotPointsOnDoubleCons[k].position
+			infos_nodes_on_double_cons.append(base.CreateEntity(deck_infos, 'NODE', {'X': axis_of_hotpoints[0], 'Y': axis_of_hotpoints[1], 'Z': axis_of_hotpoints[2]}))
+		
+		if len(infos_nodes_on_double_cons) >0:
+			Rigids2nodes = base.CreateEntity(deck_infos, 'CONSTRAINED_NODAL_RIGID_BODY', {'NID1': infos_nodes_on_double_cons[0]._id, 'NID2': infos_nodes_on_double_cons[1]._id, 'No.of.Nodes': 2})
 
-
-
-
+def FindConsDoubleFunc(infos_faces_on_shells):
+	
+	infos_cons_on_faces = base.CollectEntities(deck_infos, infos_faces_on_shells, ['CONS'])
+	infos_cons_double = []
+	infos_cons_single = []
+	for i in range(0, len(infos_cons_on_faces), 1):
+		vals_cons_faces = infos_cons_on_faces[i].get_entity_values(deck_infos, ['Number of Pasted Cons'])
+		if vals_cons_faces['Number of Pasted Cons'] >1:
+			infos_cons_double.append(infos_cons_on_faces[i])
+		else:
+			infos_cons_single.append(infos_cons_on_faces[i])
+	
+	if len(infos_cons_single) >0:
+		for k in range(0, len(infos_cons_single), 1):
+			HotPointsOnSingleCons = base.CollectEntities(deck_infos, infos_cons_single[k], ['HOT POINT'])
+			cons_referen_hotpoints_single = base.GetConsOfHotPoints(HotPointsOnSingleCons)
+			
+			infos_cons_diff = list(set(cons_referen_hotpoints_single).intersection(infos_cons_double))
+			if len(infos_cons_diff) == 0:
+				infos_cons_double.append(infos_cons_single[k])
+	
+	return infos_cons_double
+			
+ConvertShellsToRigids2NodesTool()
+ConvertShellsToRigids2NodesTool_0710
+D:\Kyty180389\Script\28.ConvertShellsToRigids2NodesTool
 
