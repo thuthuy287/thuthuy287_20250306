@@ -4,14 +4,14 @@ import ansa
 from ansa import *
 
 deck = constants.LSDYNA
-@session.defbutton('1_CAD ASSEMBLY', 'DividePartTool','Tách các chi tiết đang bị gộp lại thành 1 part')
+#@session.defbutton('1_CAD ASSEMBLY', 'DividePartTool','Tách các chi tiết đang bị gộp lại thành 1 part')
 def DividePartTool():
 	# Need some documentation? Run this with F5
 	TopWindow = guitk.BCWindowCreate("Divide Many Element On Single Part", guitk.constants.BCOnExitDestroy)
 	
 	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Options:", guitk.constants.BCHorizontal)
 	BCRadioButton_1 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Auto", None, 0)
-	BCRadioButton_2 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Manual", None, 0)
+	BCRadioButton_2 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Visible", None, 0)
 	guitk.BCRadioButtonSetChecked(BCRadioButton_1, True)
 	
 	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
@@ -33,64 +33,42 @@ def _Accept_Button(TopWindow, _window):
 	Probar = _window[0]
 	Label = _window[1]
 	AutoStatus = guitk.BCRadioButtonIsChecked(_window[2])
-	ManualStatus = guitk.BCRadioButtonIsChecked(_window[3])
+	VisibleStatus = guitk.BCRadioButtonIsChecked(_window[3])
 	
-	PropsSelected = []
+	PartsSelected = []
 	if AutoStatus == True:
-		PropsSelected = base.CollectEntities(deck, None, ['SECTION_SHELL'])
-		PartsSelected = base.CollectEntities(deck, None, ['ANSAPART'])
-	if ManualStatus == True:
-		PropsSelected = base.PickEntities(deck, ['SECTION_SHELL'])
-		PartsSelected = base.CollectEntities(deck, None, ['ANSAPART'], filter_visible = True)
+		PartsSelected = base.CollectEntities(deck, None, ['SECTION_SHELL'])
+	if VisibleStatus == True:
+		PartsSelected = base.CollectEntities(deck, None, ['SECTION_SHELL'], filter_visible = True)
 	
-	if len(PropsSelected) >0:
-		DivideElementOnPart(PropsSelected, Probar, Label)
-		DivideEntityPartsFunc(PartsSelected, Probar, Label)
+	if len(PartsSelected) >0:
+		print(len(PartsSelected))
+#		DivideElementOnPart(PartsSelected, Probar, Label)
 	
 	base.RedrawAll()
 
-
-def DivideEntityPartsFunc(PartsSelected, Probar, Label):
+def DivideElementOnPart(PartsSelected, Probar, Label):
 	
 	guitk.BCProgressBarReset(Probar)
 	guitk.BCProgressBarSetTotalSteps(Probar, len(PartsSelected))
+	
 	for i in range(0, len(PartsSelected), 1):
-		guitk.BCLabelSetText(Label, 'Loading Parts Ids: ' + str(PartsSelected[i]._id))
-		
-		ValsPartsSelect = PartsSelected[i].get_entity_values(deck, ['PID', 'Name'])
-		TokensStringPID = ValsPartsSelect['PID'].split(',')
-		
-		if len(TokensStringPID) >1:
-			for k in range(1, len(TokensStringPID), 1):
-				PropsDivides = base.GetEntity(deck, 'SECTION_SHELL', int(TokensStringPID[k]))
-				if PropsDivides != None:
-					FacesOnPropsDivide = base.CollectEntities(deck, PropsDivides, ['FACE'])
-					if len(FacesOnPropsDivide) >0:
-						NamePartDivide = ValsPartsSelect['Name'] + '@' + str(FacesOnPropsDivide[0]._id)
-						ModulePartDivide = PropsDivides._id
-	
-						ListGroupsOld = FindLocationOfPartsOldsFunc(FacesOnPropsDivide)
-						EntityPartDivide = CreateNewEntityParts(NamePartDivide, ModulePartDivide)
-						if EntityPartDivide != None:
-							EntityPartDivide.set_entity_values(deck, {'Module Id': ModulePartDivide})
-							base.SetEntityPart(FacesOnPropsDivide, EntityPartDivide)
-							if ListGroupsOld != None:
-								base.SetEntityPart(EntityPartDivide, ListGroupsOld[0])
-				
-		guitk.BCProgressBarSetProgress(Probar, i+1)
-		
-def DivideElementOnPart(PropsSelected, Probar, Label):
-	
-	guitk.BCProgressBarReset(Probar)
-	guitk.BCProgressBarSetTotalSteps(Probar, len(PropsSelected))
-	
-	for i in range(0, len(PropsSelected), 1):
-		guitk.BCLabelSetText(Label, 'Loading Props Ids: ' + str(PropsSelected[i]._id))
-		FacesOnProps = base.CollectEntities(deck, PropsSelected[i], ['FACE'])
-		if len(FacesOnProps) >0:
-			ListFacesIsolate = IsolateEntiyOnProps(FacesOnProps)
-			if len(ListFacesIsolate) >1:
-				SetupInfosToFacesIsolate(ListFacesIsolate, PropsSelected[i])
+		guitk.BCLabelSetText(Label, 'Loading Props Ids: ' + str(PartsSelected[i]._id))
+		ValsOnParts = PartsSelected[i].get_entity_values(deck, ['PID', 'Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material', 'User/CAD/StringMetaData/Revision'])
+		TokensStringPIDPart = ValsOnParts['PID'].split(',')
+		if len(TokensStringPIDPart) >1:
+			for k in range(1, len(TokensStringPIDPart), 1):
+				PropsOnPart = base.GetEntity(deck, 'SECTION_SHELL', int(TokensStringPIDPart[k]))
+				if PropsOnPart != None:
+					FacesOnProps = base.CollectEntities(deck, PropsOnPart, ['FACE'])
+					if len(FacesOnProps) >0:
+						ListFacesIsolate = IsolateEntiyOnProps(FacesOnProps)
+						print(len(ListFacesIsolate))
+						if len(ListFacesIsolate) >1:
+							print('OK')
+#							SetupInfosToFacesIsolate(ListFacesIsolate, PropsOnPart)
+						else:
+							SetupInfosNewParts(ValsOnParts, FacesOnProps, PropsOnPart)
 			
 		guitk.BCProgressBarSetProgress(Probar, i+1)
 
@@ -105,27 +83,24 @@ def SetupInfosToFacesIsolate(ListFacesIsolate, PropsIsolate):
 		NamePartFaceIsolate = PropsFaceIsolate._name
 		ModulePartFaceIsolate = PropsFaceIsolate._id
 		
-		ListGroupOfPartsOld = FindLocationOfPartsOldsFunc(ListFacesIsolate[i])
-		
 		EntityPartFaceIsolate = CreateNewEntityParts(NamePartFaceIsolate, ModulePartFaceIsolate)
 		if EntityPartFaceIsolate != None:
 			EntityPartFaceIsolate.set_entity_values(deck, {'Module Id': ModulePartFaceIsolate})
 			base.SetEntityPart(ListFacesIsolate[i], EntityPartFaceIsolate)
-			if ListGroupOfPartsOld != None:
-				base.SetEntityPart(EntityPartFaceIsolate, ListGroupOfPartsOld[0])
 
-def FindLocationOfPartsOldsFunc(EntityReference):
+
+def SetupInfosNewParts(ValsOnParts, FacesOnProps, PropsOnPart):
 	
-	ListGroupReference = []
-	PartReference = base.GetEntityPart(EntityReference[0])
-	if PartReference != None:
-		ValsPartRefer = PartReference.get_entity_values(deck, ['Hierarchy'])
-		TokensHierarchy = ValsPartRefer['Hierarchy'].split('/')
-		NameGroupPartRefer = TokensHierarchy[len(TokensHierarchy) -2]
-		ListGroupReference = base.NameToEnts(pattern = NameGroupPartRefer, deck = deck, match = constants.ENM_EXACT)
+	NewPartDevide = base.NewPart(ValsOnParts['Name'] + '_' + str(FacesOnProps[0]._id), '')
+	base.SetEntityPart(FacesOnProps, NewPartDevide)
 	
-	return ListGroupReference
+	NewPartDevide.set_entity_values(deck, {'Module Id': PropsOnPart._id, 
+																'User/CAD/StringMetaData/Nomenclature': ValsOnParts['User/CAD/StringMetaData/Nomenclature'],
+																'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]': ValsOnParts['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]'],
+																'User/CAD/StringParameterData/ParameterSet\Material': ValsOnParts['User/CAD/StringParameterData/ParameterSet\Material'], 
+																'User/CAD/StringMetaData/Revision': ValsOnParts['User/CAD/StringMetaData/Revision']})
 	
+
 def IsolateEntiyOnProps(FacesOnProps):
 	ListFacesIsolate = []
 	
@@ -142,4 +117,4 @@ def CreateNewEntityParts(NamePartFaceIsolate, ModulePartFaceIsolate):
 		
 	return EntiyPart
 
-#DividePartTool()
+DividePartTool()
