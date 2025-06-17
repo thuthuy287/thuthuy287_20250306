@@ -3354,3 +3354,4 @@ if __name__ == '__main__':
 	main()
 
 SetupInfoCADPart_0716
+D:\Kyty180389\Script\02.Cad Assembly Tool
