@@ -1465,3 +1465,884 @@ ConvertShellsToRigids2NodesTool()
 ConvertShellsToRigids2NodesTool_0710
 D:\Kyty180389\Script\28.ConvertShellsToRigids2NodesTool
 
+
+D:\Kyty180389\Script\98.Trim-up-Tool
+
+D:\Kyty180389\Script\98.Trim-up-Tool\01.AdjustMassTool
+
+
+import ansa
+from ansa import *
+ 
+deck_infos = constants.NASTRAN
+#@session.defbutton('7_TRIM-UP', 'AdjustMassTool','Adjust Mass By RHO')
+def AdjustMassTool():
+	TopWindow = guitk.BCWindowCreate("Auto Adjust Mass Of Part Tool version 1.0", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Import Mass: ", guitk.constants.BCHorizontal)
+	BCLabel_1 = guitk.BCLabelCreate(BCButtonGroup_1, "Mass(Kg): ")
+	BCLineEdit_1 = guitk.BCLineEditCreate(BCButtonGroup_1, "")
+	
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	_window = [BCLineEdit_1]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
+	
+	guitk.BCShow(TopWindow)
+
+def RejectFunc(TopWindow, _window):
+	return 1
+	
+#***************** Khoi dong giao dien nguoi dung
+def AcceptFunc(TopWindow, _window):
+	
+	MassInfos = guitk.BCLineEditGetText(_window[0])
+	if MassInfos != '':
+		for i in range(0, 100, 1):
+			ElemsSelect = base.PickEntities(deck_infos, ['__ELEMENTS__'], 'ELEMENT')
+			if ElemsSelect != None:
+				PropsAdjustMass = base.PickEntities(deck_infos, ['__PROPERTIES__'], 'PROPERTY')
+				if PropsAdjustMass != None:
+					MassOfElemsSelect = base.CalcElementMass(entities = ElemsSelect, no_nsm = True, deck = deck_infos)
+					if len(MassOfElemsSelect) >0:
+						MassNotEnough = float(MassInfos) - (MassOfElemsSelect[0]*1000)
+						AdjustMassToRHOofPropsFunc(MassNotEnough, PropsAdjustMass)
+			else:
+				return 1
+		
+	else:
+		guitk.UserError('Import Infos Of Mass')
+
+#***************** Dieu chinh khoi luong vao RHO cua MAT
+def AdjustMassToRHOofPropsFunc(MassNotEnough, PropsAdjustMass):
+	
+	MassOfProps = base.CalcElementMass(entities = PropsAdjustMass, no_nsm = True, deck = deck_infos)
+	MATReferen, ListPropsUseMATReferen = FindInfosMATInPropsFunc(PropsAdjustMass)
+	if MATReferen != None:
+		if len(ListPropsUseMATReferen)>0:
+			MATReferenNew = base.CopyEntity(None, MATReferen)
+			try:
+				PropsAdjustMass[0].set_entity_values(deck_infos, {'MID': MATReferenNew._id})
+			except:
+				print('None')
+			else:
+				PropsAdjustMass[0].set_entity_values(deck_infos, {'MID1': MATReferenNew._id, 'MID2': MATReferenNew._id, 'MID3': MATReferenNew._id})
+		else:
+			MATReferenNew = MATReferen
+		
+		ValsMatReferenNew = MATReferenNew.get_entity_values(deck_infos, ['RHO'])
+		MassAdjustToProps = MassOfProps[0]*1000 + MassNotEnough
+		RHOAdjustToMAT = (MassAdjustToProps*ValsMatReferenNew['RHO'])/(MassOfProps[0]*1000)
+		MATReferenNew.set_entity_values(deck_infos, {'RHO': RHOAdjustToMAT})
+		
+
+#***************** Lay thong tin cua MAT
+def FindInfosMATInPropsFunc(PropsAdjustMass):
+	
+	MATReferen = None
+	ListPropsUseMATReferen = []
+	
+	ValsOfProps = PropsAdjustMass[0].get_entity_values(deck_infos, ['__type__', 'MID', 'MID1'])
+	if ValsOfProps['__type__'] == 'PSOLID' or ValsOfProps['__type__'].find('PBEAM') != -1:
+		MATReferen = ValsOfProps['MID']
+	elif ValsOfProps['__type__'] == 'PSHELL':
+		MATReferen = ValsOfProps['MID1']
+
+	if MATReferen != None:
+		AllsPropsConnect = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'])
+		if len(AllsPropsConnect) >0:
+			for i in range(0, len(AllsPropsConnect), 1):
+				if AllsPropsConnect[i] != PropsAdjustMass[0]:
+					ValsPropsConnect = AllsPropsConnect[i].get_entity_values(deck_infos, ['__type__', 'MID', 'MID1'])
+					if ValsPropsConnect['__type__'] == 'PSOLID' or ValsPropsConnect['__type__'].find('PBEAM') != -1:
+						MATConnect = ValsPropsConnect['MID']
+					elif ValsPropsConnect['__type__'] == 'PSHELL':
+						MATConnect = ValsPropsConnect['MID1']
+					else:
+						MATConnect = None
+#					print(MATConnect)	
+					if MATConnect != None:
+						if MATConnect._id == MATReferen._id:
+							ListPropsUseMATReferen.append(AllsPropsConnect[i])
+		
+	return MATReferen, ListPropsUseMATReferen
+	
+#AdjustMassTool()
+
+AdjustMassTool_20200521
+
+import ansa
+from ansa import *
+ 
+deck_infos = constants.NASTRAN
+@session.defbutton('7_TRIM-UP', 'AdjustMassTool','Adjust Mass By RHO')
+def AdjustMassTool():
+	TopWindow = guitk.BCWindowCreate("Auto Adjust Mass Of Part Tool version 1.0", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Import Mass: ", guitk.constants.BCHorizontal)
+	BCLabel_1 = guitk.BCLabelCreate(BCButtonGroup_1, "Mass(Kg): ")
+	BCLineEdit_1 = guitk.BCLineEditCreate(BCButtonGroup_1, "")
+	
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	_window = [BCLineEdit_1]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
+	
+	guitk.BCShow(TopWindow)
+
+def RejectFunc(TopWindow, _window):
+	return 1
+	
+#***************** Khoi dong giao dien nguoi dung
+def AcceptFunc(TopWindow, _window):
+	
+	MassInfos = guitk.BCLineEditGetText(_window[0])
+	if MassInfos != '':
+		for i in range(0, 100, 1):
+			ElemsSelect = base.PickEntities(deck_infos, ['__ELEMENTS__'], 'ELEMENT')
+			if ElemsSelect != None:
+				PropsAdjustMass = base.PickEntities(deck_infos, ['__PROPERTIES__'], 'PROPERTY')
+				if PropsAdjustMass != None:
+					MassOfElemsSelect = base.CalcElementMass(entities = ElemsSelect, no_nsm = True, deck = deck_infos)
+					if len(MassOfElemsSelect) >0:
+						MassNotEnough = float(MassInfos) - (MassOfElemsSelect[0]*1000)
+						AdjustMassToRHOofPropsFunc(MassNotEnough, PropsAdjustMass)
+			else:
+				return 1
+		
+	else:
+		guitk.UserError('Import Infos Of Mass')
+
+#***************** Dieu chinh khoi luong vao RHO cua MAT
+def AdjustMassToRHOofPropsFunc(MassNotEnough, PropsAdjustMass):
+	
+	MassOfProps = base.CalcElementMass(entities = PropsAdjustMass, no_nsm = True, deck = deck_infos)
+	status_error, MATReferen, ListPropsUseMATReferen = FindInfosMATInPropsFunc(PropsAdjustMass)
+	if status_error == False:
+		if len(ListPropsUseMATReferen)>0:
+			MATReferenNew = base.CopyEntity(None, MATReferen)
+			for i in range(0, len(PropsAdjustMass), 1):
+				try:
+					PropsAdjustMass[i].set_entity_values(deck_infos, {'MID': MATReferenNew._id})
+				except:
+					print('None')
+				else:
+					PropsAdjustMass[i].set_entity_values(deck_infos, {'MID1': MATReferenNew._id, 'MID2': MATReferenNew._id, 'MID3': MATReferenNew._id})
+					
+		else:
+			MATReferenNew = MATReferen
+		
+		ValsMatReferenNew = MATReferenNew.get_entity_values(deck_infos, ['RHO'])
+		MassAdjustToProps = MassOfProps[0]*1000 + MassNotEnough
+		RHOAdjustToMAT = (MassAdjustToProps*ValsMatReferenNew['RHO'])/(MassOfProps[0]*1000)
+		MATReferenNew.set_entity_values(deck_infos, {'RHO': RHOAdjustToMAT})
+				
+	else:
+		guitk.UserError('Check infos mat of props')
+		return 1
+
+#***************** Lay thong tin cua MAT
+def FindInfosMATInPropsFunc(PropsAdjustMass):
+	
+	ListPropsUseMATReferen = []
+	MATReferen = None
+	
+	infos_mats_referen = base.CollectEntities(deck_infos, PropsAdjustMass, '__MATERIALS__', recursive = True)
+	if len(infos_mats_referen) >0:
+		if len(infos_mats_referen) == 1:
+			MATReferen = infos_mats_referen[0]
+			status_error = False
+			AllsPropsConnect = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'])
+			if len(AllsPropsConnect) >0:
+				ListPropsDiff = [set(AllsPropsConnect).difference(PropsAdjustMass)]
+				for i in range(0, len(ListPropsDiff), 1):
+					infos_mats_props_diff = base.CollectEntities(deck_infos, ListPropsDiff[i], '__MATERIALS__', recursive = True)
+					if len(infos_mats_props_diff) >0:
+						if infos_mats_props_diff[0]._id == infos_mats_referen[0]._id:
+							ListPropsUseMATReferen.append(ListPropsDiff[i])
+		else:
+			status_error = True
+	else:
+		status_error = True
+		
+	return status_error, MATReferen, ListPropsUseMATReferen
+	
+#AdjustMassTool()
+AdjustMassTool_20200708
+
+
+D:\Kyty180389\Script\98.Trim-up-Tool\02.CheckAndFixBeamInLineNVHTool
+
+# PYTHON script
+import os
+import ansa
+import math
+from ansa import *
+
+deck_infos = constants.NASTRAN
+@session.defbutton('7_TRIM-UP', 'CheckAndFixBeamInLineNVHTool','Check va sua loi beam khong thang hang')
+def CheckAndFixBeamInLineNVHTool():
+	# Need some documentation? Run this with F5
+	alls_props = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'])
+	if len(alls_props) >0:
+		infos_beams_check, infos_beams_not_check = FindBoltBeamFunc(alls_props)
+		if len(infos_beams_check) >0:
+			ListPointsError = CheckBeamInLineFunc(infos_beams_check)
+			if len(ListPointsError) >0:
+				infos_parts_points = CreateNewPartFunc('Beams Error', 'Beams Error')
+				base.SetEntityPart(ListPointsError, infos_parts_points)
+	
+	guitk.UserError('Done.......^.^')
+
+def CheckBeamInLineFunc(infos_beams_check):
+	
+	ListPointsError = []
+	for Single_groups_beams in infos_beams_check:
+		infos_nodes_beam_startends, infos_nodes_beam_middle = FindNodesStartEndsOnGroupBeamFunc(Single_groups_beams)
+		if len(infos_nodes_beam_startends) >0 and len(infos_nodes_beam_middle) >0:
+			infos_curves_beams = CreateInfosCurvesOnStartEndsBeamFunc(infos_nodes_beam_startends)
+			if infos_curves_beams != None:
+				for i in range(0, len(infos_nodes_beam_middle), 1):
+					axis_nodes_middle_beam = infos_nodes_beam_middle[i].position
+					infos_project_points = base.ProjectPoint(axis_nodes_middle_beam[0], axis_nodes_middle_beam[1], axis_nodes_middle_beam[2], infos_curves_beams)
+					if infos_project_points != 0:
+						axis_points_proj_result = [infos_project_points[1], infos_project_points[2], infos_project_points[3]]
+						distance_node_beam_to_curves = CalculateDistance2PointsFunc(axis_nodes_middle_beam, axis_points_proj_result)
+						if distance_node_beam_to_curves >0.01:
+							infos_nodes_beam_middle[i].set_entity_values(deck_infos, {'X1': infos_project_points[1], 'X2': infos_project_points[2], 'X3': infos_project_points[3]})
+							ListPointsError.append(base.Newpoint(axis_nodes_middle_beam[0], axis_nodes_middle_beam[1], axis_nodes_middle_beam[2]))
+				
+				base.DeleteEntity(infos_curves_beams, True)
+				
+	return ListPointsError
+		
+############ Tao curves giua diem dau va diem cuoi cua doan beam
+def CreateInfosCurvesOnStartEndsBeamFunc(infos_nodes_beam_startends):
+	
+	infos_curves_beams = None
+	infos_axis_curve_X = []
+	infos_axis_curve_Y = []
+	infos_axis_curve_Z = []
+	for i in range(0, len(infos_nodes_beam_startends), 1):
+		axis_nodes_starts_beams = infos_nodes_beam_startends[i].position
+		infos_axis_curve_X.append(axis_nodes_starts_beams[0])
+		infos_axis_curve_Y.append(axis_nodes_starts_beams[1])
+		infos_axis_curve_Z.append(axis_nodes_starts_beams[2])
+	
+	
+	infos_curves_beams = base.CreateCurve(len(infos_axis_curve_X), infos_axis_curve_X, infos_axis_curve_Y, infos_axis_curve_Z)
+	return infos_curves_beams
+		
+######### Tim nodes dau va node cuoi cua 1 doan beam
+def FindNodesStartEndsOnGroupBeamFunc(Single_groups_beams):
+	
+	infos_nodes_beam_startends = []
+	infos_nodes_beam_middle = []
+	
+	alls_nodes_beams = base.CollectEntities(deck_infos, Single_groups_beams, ['GRID'])
+	if len(alls_nodes_beams)>0:
+		for k in range(0, len(alls_nodes_beams), 1):
+			ListBeamsReferenceNodes = []
+			for w in range(0, len(Single_groups_beams), 1):
+				node_on_single_beams = base.CollectEntities(deck_infos, Single_groups_beams[w], ['GRID'])
+				infos_nodes_intersection = list(set(node_on_single_beams).intersection([alls_nodes_beams[k]]))
+				if len(infos_nodes_intersection)>0:
+					ListBeamsReferenceNodes.append(Single_groups_beams[w])
+				
+			if len(ListBeamsReferenceNodes) >0:
+				if len(ListBeamsReferenceNodes) == 1:
+					infos_nodes_beam_startends.append(alls_nodes_beams[k])	
+				else:
+					infos_nodes_beam_middle.append(alls_nodes_beams[k])		
+
+	return infos_nodes_beam_startends, infos_nodes_beam_middle
+					
+######### Find Beam Need Check
+def FindBoltBeamFunc(alls_props):
+	
+	infos_beams_check = []
+	infos_beams_not_check = []
+	ListPropsBeamBolt = []
+	
+	for i in range(0, len(alls_props), 1):
+		ids_props = alls_props[i]._id
+		vals_props = alls_props[i].get_entity_values(deck_infos, ['__type__'])
+		if vals_props['__type__'].find('BEAM') != -1 and ids_props <= 100500:
+			ListPropsBeamBolt.append(alls_props[i])
+	
+	if len(ListPropsBeamBolt) >0:
+		set_beam_check = base.CreateEntity(deck_infos, "SET")
+		elems_on_props = base.CollectEntities(deck_infos, ListPropsBeamBolt, ['CBEAM'])
+		dict_isolate_groups = base.IsolateConnectivityGroups(entities = elems_on_props, separate_at_blue_bounds = 0, separate_at_pid_bounds = 0)
+		if dict_isolate_groups != None:
+			for key_name_group, infos_vals_elems in dict_isolate_groups.items():
+				if len(infos_vals_elems) >1:
+					infos_beams_check.append(infos_vals_elems)
+					base.AddToSet(set_beam_check, infos_vals_elems)
+				else:
+					infos_beams_not_check.append(infos_vals_elems)
+			
+	return infos_beams_check, infos_beams_not_check
+
+
+#################Help Funs
+def CalculateDistance2PointsFunc(Points1st, Points2nd):
+	
+	VecsAB = [Points2nd[0] - Points1st[0], Points2nd[1] - Points1st[1], Points2nd[2] - Points1st[2]]
+	LenVecsAB = math.sqrt((VecsAB[0]*VecsAB[0]) + (VecsAB[1]*VecsAB[1]) + (VecsAB[2]*VecsAB[2]))
+	
+	return LenVecsAB
+
+def CreateNewPartFunc(NamePart, ModuleIdsPart):
+	
+	NewParts = base.NewPart(NamePart, ModuleIdsPart)
+	if NewParts == None:
+		EntityPart = base.NameToEnts(NamePart)
+		
+		NewParts = EntityPart[0]
+	
+	return NewParts	
+
+#CheckBeamInLineNVHTool()
+CheckAndFixBeamInLineNVHTool_20200812
+
+
+
+D:\Kyty180389\Script\98.Trim-up-Tool\03.CreatePanelTool
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+deck_infos = constants.NASTRAN
+def Create_Panel_Tool():
+	
+	props_selected = base.PickEntities(deck_infos, ['__PROPERTIES__'], 'PROPERTY')
+	if props_selected != None:
+		infos_list_string_panel = []	
+		infos_list_names, infos_list_ids_names = GetInfosNameIdsFunc(props_selected, infos_list_string_panel)
+		
+		if len(infos_list_ids_names)>0:
+			infos_list_string_panel.append('$\n')
+			infos_list_string_panel.append('$------1-------2-------3-------4-------5-------6-------7-------8-------9-------0\n')
+			infos_list_string_panel.append('$\n')
+			
+			GetInfosPANELFunc(infos_list_ids_names, infos_list_string_panel)
+			infos_list_string_panel.append('$------1-------2-------3-------4-------5-------6-------7-------8-------9-------0\n')
+			infos_list_string_panel.append('$\n')
+			GetInfosSet_20Func(infos_list_names, infos_list_string_panel)
+			
+		
+		if len(infos_list_string_panel) >0:
+			panel_text = open('D:/infos_panel_output.txt', 'w')
+			for w in range(0, len(infos_list_string_panel), 1):
+				panel_text.write(infos_list_string_panel[w])
+			panel_text.close()
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$	
+def GetInfosSet_20Func(infos_list_names, infos_list_string_panel):
+	
+	infos_string_set_20 = DivideStepLoadFunc(infos_list_names)
+	if len(infos_string_set_20) >0:
+		if len(infos_string_set_20) == 1:
+			string_text_set_20_add = 'SET 20 ='+''.join(infos_string_set_20[0])
+			infos_list_string_panel.append(string_text_set_20_add[0:len(string_text_set_20_add) - 1] + '\n')
+		else:
+			infos_list_string_panel.append('SET 20 ='+''.join(infos_string_set_20[0])+'\n')
+			for w1 in range(1, len(infos_string_set_20)-1, 1):
+				infos_list_string_panel.append('        '+''.join(infos_string_set_20[w1])+'\n')
+				
+			string_text_set_20_end_add = '        '+''.join(infos_string_set_20[len(infos_string_set_20)-1])
+			infos_list_string_panel.append(string_text_set_20_end_add[0:len(string_text_set_20_end_add) - 1] + '\n')
+
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$	
+def GetInfosPANELFunc(infos_list_ids_names, infos_list_string_panel):
+	
+	infos_string_panel = DivideStepLoadFunc(infos_list_ids_names)
+	if len(infos_string_panel) >0:
+		if len(infos_string_panel) == 1:
+			infos_list_string_panel.append('PANEL   '+''.join(infos_string_panel[0])+'\n')
+		else:
+			infos_list_string_panel.append('PANEL   '+''.join(infos_string_panel[0])+'\n')
+			for w1 in range(1, len(infos_string_panel), 1):
+				infos_list_string_panel.append('        '+''.join(infos_string_panel[w1])+'\n')
+
+######$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+def DivideStepLoadFunc(infos_list_divide_step):
+	
+	step_range = []
+	infos_string_panel = []
+	for k in range(0, len(infos_list_divide_step), 4):
+		step_range.append(k)
+	if max(step_range) < len(infos_list_divide_step):
+		step_range.append(len(infos_list_divide_step))
+	
+	if len(step_range) >0:
+		for j in range(0, len(step_range)-1, 1):
+			infos_string_step_panel = []
+			for j1 in range(step_range[j], step_range[j+1], 1):
+				infos_string_step_panel.append(infos_list_divide_step[j1])
+			if len(infos_string_step_panel)>0:
+				infos_string_panel.append(infos_string_step_panel)
+						
+	return infos_string_panel
+		
+#$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+def GetInfosNameIdsFunc(props_selected, infos_list_string_panel):
+
+	infos_list_names = []
+	infos_list_ids_names = []
+	
+	for i in range(0, len(props_selected), 1):
+		ids_props = str(props_selected[i]._id)
+		name_props = props_selected[i]._name
+		if len(name_props) <8:
+			name_props_add_blank = name_props + '        '
+			name_props_replace = name_props_add_blank[0:8]
+		else:
+			name_props_replace = name_props[0:8]
+			
+		if len(ids_props) <8:
+			ids_props_add_blank = ids_props + '        '
+			ids_props_replace = ids_props_add_blank[0:7]
+		else:
+			ids_props_replace = ids_props[0:7]
+			
+		infos_list_names.append(name_props_replace + ',')
+		infos_list_ids_names.append(name_props_replace + ' ' + ids_props_replace)
+		
+		infos_list_string_panel.append('SET3     ' + ids_props_replace +'    PROP ' + ids_props_replace+'\n')
+	
+	return infos_list_names, infos_list_ids_names
+			
+#			infos_list_string_panel.append('$\n')
+#			infos_list_string_panel.append('$------1-------2-------3-------4-------5-------6-------7-------8-------9-------0\n')
+#			infos_list_string_panel.append('$\n')
+############## Divide step load			
+#			step_range = []
+#			for k in range(0, len(infos_list_ids), 4):
+#				step_range.append(k)
+#			if max(step_range) < len(infos_list_ids):
+#				step_range.append(len(infos_list_ids))
+#			
+#			infos_string_panel = []
+#			for j in range(0, len(step_range)-1, 1):
+#				infos_string_step_panel = []
+#				for j1 in range(step_range[j], step_range[j+1], 1):
+#					infos_string_step_panel.append('P'+str(infos_list_ids[j1])+' '+str(infos_list_ids[j1]))
+#				if len(infos_string_step_panel)>0:
+#					infos_string_panel.append(infos_string_step_panel)
+#			
+#			if len(infos_string_panel)>0:
+#				if len(infos_string_panel) == 1:
+#					infos_list_string_panel.append('PANEL   '+''.join(infos_string_panel[0])+'\n')
+#				else:
+#					infos_list_string_panel.append('PANEL   '+''.join(infos_string_panel[0])+'\n')
+#					for w1 in range(1, len(infos_string_panel), 1):
+#						infos_list_string_panel.append('        '+''.join(infos_string_panel[w1])+'\n')
+#			
+############## Write infos panel			
+#			panel_text = open('D:/infos_panel_output.txt', 'w')
+#			for w in range(0, len(infos_list_string_panel), 1):
+#				panel_text.write(infos_list_string_panel[w])
+#			
+#			panel_text.close()
+	
+Create_Panel_Tool()
+
+CreatePanelTool_1020
+
+
+
+D:\Kyty180389\Script\99.Other
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+def main():
+	# Need some documentation? Run this with F5
+	SelectSectionsBeam = base.PickEntities(constants.ABAQUS, ['BEAM_SECTION'])
+	if SelectSectionsBeam != None:
+		base.Or(SelectSectionsBeam)
+		base.Neighb('1')
+		ContraintOnBeam = base.CollectEntities(constants.ABAQUS, None, ['COUPLING', 'MPC', 'KINEMATIC COUPLING'], filter_visible = True)
+	
+		for i in range(0, len(SelectSectionsBeam), 1):
+			GroupBeamsOnSectionBeam = base.IsolateConnectivityGroups(entities = SelectSectionsBeam[i], separate_at_blue_bounds = True, separate_at_pid_bounds = True)
+			for KeyNameGroup, ElementBeamInGroup in GroupBeamsOnSectionBeam.items():
+				NodesOnBeam = base.CollectEntities(constants.ABAQUS, ElementBeamInGroup, ['NODE'])	
+				ListConstraintInBeam = []
+				for w in range(0, len(ContraintOnBeam), 1):
+					NodesContraintOnBeam = base.CollectEntities(constants.ABAQUS, ContraintOnBeam[w], ['NODE'])
+					SetNodeContraintWithNodeBeam = set(NodesContraintOnBeam).intersection(NodesOnBeam)
+					if len(SetNodeContraintWithNodeBeam) >0:
+						ListConstraintInBeam.append(ContraintOnBeam[w])
+			
+				if len(ListConstraintInBeam) >0:
+					ListNodesReferenContraint = base.CollectEntities(constants.ABAQUS, ListConstraintInBeam[0], ['NODE'])
+					ListDifferenceNode = list(set(ListNodesReferenContraint).difference(NodesOnBeam))
+					for j in range(0, len(ElementBeamInGroup), 1):
+						base.SetEntityCardValues(constants.ABAQUS, ElementBeamInGroup[j], {'Orient': 'With Node - Y Axis', 'NODE3': ListDifferenceNode[0]._id})
+
+if __name__ == '__main__':
+	main()
+
+ChangeVectorOfBeamAbaqus
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+@session.defbutton('99_OTHER TOOL', 'CalculateWeightOfPart','Tính khối lượng của từng chi tiết')
+def CalculateWeightOfPart():
+	# Need some documentation? Run this with F5
+	AllsProps = base.CollectEntities(constants.LSDYNA, None, ['__PROPERTIES__'], filter_visible = True)
+	if len(AllsProps) >0:
+		
+		for i in range(0, len(AllsProps), 1):
+			mass_info = base.CalcElementMass(AllsProps[i], deck = constants.NASTRAN)
+			WeightOfParts = round(mass_info[0]*1000, 2)
+			base.SetEntityCardValues(constants.LSDYNA, AllsProps[i], {'User/cad_thickness': WeightOfParts})
+	
+#CalculateWeightOfPart()
+
+Caculate_Weight_Of_Parts
+
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+deck_infos = base.CurrentDeck()
+def main():
+	# Need some documentation? Run this with F5
+	path_csv = utils.SelectOpenFile(0, '*.csv')
+	if len(path_csv) >0:
+		infos_line_csv = ReadInfoCsvFunc(path_csv[0])
+		if len(infos_line_csv) >0:
+			infos_list_pid_origin = FindPropsDivideInCsvFunc(infos_line_csv)
+			if len(infos_list_pid_origin) >0:
+				infos_pids_weight_add_csv = CalculateWeightOfPartsFunc(infos_list_pid_origin)
+				if len(infos_pids_weight_add_csv)>0:
+					Write_Weight_of_Part_ToCsvFunc(infos_pids_weight_add_csv, infos_line_csv, path_csv)
+
+def Write_Weight_of_Part_ToCsvFunc(infos_pids_weight_add_csv, infos_line_csv, path_csv):
+	
+	infos_csv_new = open(path_csv[0], 'w')
+	for i in range(0, len(infos_line_csv), 1):
+		tokens_string_csv = infos_line_csv[i].split(',')
+		weight_infos_add = None
+		for w in range(0, len(infos_pids_weight_add_csv), 1):
+			if infos_pids_weight_add_csv[w][0] == tokens_string_csv[0]:
+				weight_infos_add = infos_pids_weight_add_csv[w][1]
+		
+		if weight_infos_add == None:
+			infos_csv_new.write(infos_line_csv[i] + '\n')
+		else:
+			infos_csv_new.write(infos_line_csv[i] + ',' + str(weight_infos_add) + '\n')
+	
+	infos_csv_new.close()
+	
+########## Tinh Khoi Luong Cua Cac Parts
+def CalculateWeightOfPartsFunc(infos_list_pid_origin):
+	
+	infos_pids_weight_add_csv = []
+	for i in range(0, len(infos_list_pid_origin), 1):
+		infos_props_referen_ids = []
+		for w in range(0, len(infos_list_pid_origin[i]), 1):
+			props_referen = base.GetEntity(deck_infos, '__PROPERTIES__', int(infos_list_pid_origin[i][w]))
+			if props_referen != None:
+				infos_props_referen_ids.append(props_referen)
+		
+		if len(infos_props_referen_ids) >0:
+			PartsConnect = CreateNewPartFunc(infos_list_pid_origin[i][0], '')
+			ElemsOnProps = base.CollectEntities(deck_infos, infos_props_referen_ids, ['__ELEMENTS__'])
+			base.SetEntityPart(ElemsOnProps, PartsConnect)
+			mass_info = base.CalcElementMass(infos_props_referen_ids, deck = deck_infos)
+			WeightOfParts = round(mass_info[0]*1000, 4)
+			base.SetEntityCardValues(deck_infos, infos_props_referen_ids[0], {'Comment': WeightOfParts})
+			infos_pids_weight_add_csv.append([infos_list_pid_origin[i][0], WeightOfParts])
+	
+	return infos_pids_weight_add_csv
+
+########## Find Props Divide in model		
+def FindPropsDivideInCsvFunc(infos_line_csv):
+	
+	list_pid_alls = []
+	list_pid_origin_division = []
+	list_pid_division = []
+	
+	infos_list_pid_origin = []
+	for i in range(0, len(infos_line_csv), 1):
+		split_string_line = infos_line_csv[i].split(',')
+		list_pid_alls.append(split_string_line[0])
+#		print(split_string_line)
+		if split_string_line[24] != '':
+			split_string_division = split_string_line[24].split(':')
+			list_pid_origin_division.append(split_string_division[1])
+			list_pid_division.append(split_string_line[0])
+	
+	infos_pid_not_divide = list(set(list_pid_alls).difference(list_pid_division))
+	for j in range(0, len(infos_pid_not_divide), 1):
+		infos_list_pid_origin.append([infos_pid_not_divide[j]])
+	
+	if len(list_pid_division) >0:
+		list_pid_origin_remove_double = list(set(list_pid_origin_division))
+		for k in range(0, len(list_pid_origin_remove_double), 1):
+			infos_pid_origin_division = []
+			infos_pid_origin_division.append(list_pid_origin_remove_double[k])
+			for w in range(0, len(list_pid_origin_division), 1):
+				if list_pid_origin_division[w] == list_pid_origin_remove_double[k]:
+					infos_pid_origin_division.append(list_pid_division[w])
+			
+			if len(infos_pid_origin_division) >0:
+				infos_list_pid_origin.append(infos_pid_origin_division)
+
+	return infos_list_pid_origin
+
+#	AllProps = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'])
+#	ListPropsConnected = []
+#	for SingleProps in AllProps:
+#		 PoscheckPID = FindEntityInListElementsFunc(SingleProps, ListPropsConnected)
+#		 if PoscheckPID == None:
+#		 	base.Or(SingleProps)
+#		 	base.Neighb('ALL')
+#		 	PropsVis = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'], filter_visible = True)
+#		 	if len(PropsVis) >0:
+#		 		PropsWithMaxElems = FindPropOriginFunc(PropsVis)
+#		 		ListPropsConnected.extend(PropsVis)
+#		 		ElemsOnProps = base.CollectEntities(deck_infos, PropsVis, ['__ELEMENTS__'])
+#		 		PartsConnect = base.NewPart(str(PropsWithMaxElems._id), '')
+#		 		base.SetEntityPart(ElemsOnProps, PartsConnect)
+#		 		
+#		 		mass_info = base.CalcElementMass(PropsVis, deck = deck_infos)
+#		 		WeightOfParts = round(mass_info[0]*1000, 3)
+#		 		base.SetEntityCardValues(deck_infos, PropsWithMaxElems, {'Comment': WeightOfParts})
+#		 		
+#def FindPropOriginFunc(PropsVis):
+#	
+#	ListLenElemsCheck = []
+#	for i in range(0, len(PropsVis), 1):
+#		AllElemsInPropVis = base.CollectEntities(deck_infos, PropsVis[i], ['__ELEMENTS__'])
+#		ListLenElemsCheck.append(len(AllElemsInPropVis))
+#	
+#	IndexMaxElems = ListLenElemsCheck.index(max(ListLenElemsCheck))
+#	PropsWithMaxElems = PropsVis[IndexMaxElems]
+#	
+#	return PropsWithMaxElems
+#	
+#def FindEntityInListElementsFunc(EntityElement, ListElements):
+#	
+#	try:
+#		Pos = ListElements.index(EntityElement)
+#	except:
+#		Pos = None
+#	else:
+#		Pos = Pos
+#	
+#	return Pos
+
+def ReadInfoCsvFunc(PathCsv):
+	
+	OpenCSVFile = open(PathCsv)
+	ReadLinesCSV = OpenCSVFile.readlines()
+	
+	ListLinesInCSV = []
+	for i in range(0, len(ReadLinesCSV), 1):
+		ListLinesInCSV.append(ReadLinesCSV[i].strip())
+
+	OpenCSVFile.close()
+	
+	return ListLinesInCSV
+
+def CreateNewPartFunc(NamePart, ModuleIdsPart):
+	
+	NewParts = base.NewPart(NamePart, ModuleIdsPart)
+	if NewParts == None:
+		EntityPart = base.NameToEnts(NamePart)
+		
+		NewParts = EntityPart[0]
+	
+	return NewParts	
+
+if __name__ == '__main__':
+	main()
+Calculate_Weight_Of_PlasticParts
+
+
+
+
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+@session.defbutton('99_OTHER TOOL', 'RemoveElemsOnConnection','Tách các phần tử trong Connection')
+def RemoveElemsFromConnectionTool():
+
+	EntityPick = base.PickEntities(constants.LSDYNA, ['__CONNECTIONS__'])
+	if EntityPick != None:
+		ElementInConnection = base.CollectEntities(constants.LSDYNA, EntityPick, ['__ELEMENTS__'])
+		if len(ElementInConnection) >0:
+			PartConnection = base.NewPart('Connection_Element', '')
+			if PartConnection == None:
+				EntityPart = base.NameToEnts('Connection_Element')
+				PartConnection = EntityPart[0]
+			else:
+				PartConnection = PartConnection
+		
+			base.SetEntityPart(ElementInConnection, PartConnection)
+
+RemoveElemsFromConnectionTool()
+
+RemoveElemsOnConnection
+
+
+
+# PYTHON script
+import os
+import meta
+from meta import *
+
+def SetupAnnotationOnPart():
+	
+#	utils.MetaCommand('explode center 1.5 all')
+	
+	parts_vis = parts.VisibleParts()
+	model_id = 0
+	
+	utils.MetaCommand('annotation del all')
+	for i in range(0, len(parts_vis), 1):
+		NamePart = parts_vis[i].name
+		ThicknessPart = parts_vis[i].shell_thick
+		
+		part_id = parts_vis[i].id
+		part_type = parts_vis[i].type
+#		part_type = constants.PSHELL
+		
+		part_materials = materials.MaterialsOfPart(model_id, part_type, part_id)
+		MATName = part_materials[0].name
+		
+		part_mass = round(parts.MassOfPart(model_id, part_type, part_id)*1000, 2)
+#		print(part_mass)
+		
+		StringCommand = 'annotation add onparts ' + str(part_id)+' '+ NamePart +"\n"+ 'Thickness: ' + str(ThicknessPart) +' mm' +"\n"+ 'Material  : '+ MATName +"\n" + 'Weight    : '+ str(part_mass) +' Kg'
+#		print(StringCommand)
+		
+		utils.MetaCommand(StringCommand)
+		
+	utils.MetaCommand('annotation text all font "MS Shell Dlg 2,8,-1,5,75,0,0,0,0,0"')      
+	utils.MetaCommand('annotation anchor all pointer 100.000000 100.000000')
+	utils.MetaCommand('annotation background all color manual Orange')
+	
+SetupAnnotationOnPart()
+
+SetUpAnnotationMetaPost
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+deck_infos = constants.NASTRAN
+def Change_Axis_Point_Tire():
+
+##### Nhập tên cần tìm kiếm: Tire, hoặc .....
+	input_name_search = 'Tire'
+##### Chọn file cần chỉnh sửa thông tin	
+	select_files = utils.SelectOpenFile(0, '*.bdf', '*.txt')
+	if len(select_files)>0:
+		lines_in_selected_file = open_entity_file_func(select_files[0])
+		if len(lines_in_selected_file)>0:
+			infos_locate_of_points = find_infos_points_in_source_file(input_name_search, lines_in_selected_file)
+			if len(infos_locate_of_points)>0:
+				
+		
+
+
+##### Lấy thông tin điểm point trong file
+def find_infos_points_in_source_file(input_name_search, lines_in_selected_file):
+	
+	infos_location_name_points = find_location_of_name_points(input_name_search, lines_in_selected_file)
+	if len(infos_location_name_points)>0:
+#		print(infos_location_name_points)
+		infos_locate_of_points = get_infos_location_points_in_files(infos_location_name_points, lines_in_selected_file)
+#		print(infos_locate_of_points)
+	else:
+		print('Not found name of points')
+	
+	return infos_locate_of_points
+
+########## Tìm tọa độ và tên điểm points trong file
+def get_infos_location_points_in_files(infos_location_name_points, lines_in_selected_file):
+	infos_locate_of_points= []
+	########## Chia khoảng giữa các điểm points
+	infos_range_name_points = []
+	for i in range(0, len(infos_location_name_points)-1, 1):
+		infos_range_name_points.append([infos_location_name_points[i], infos_location_name_points[i+1]])
+	
+	########## Giữa các tên của điểm point tìm tọa độ ORIGIN
+	if len(infos_range_name_points)>0:
+		for k in range(0, len(infos_range_name_points), 1):
+			range_of_name_points = infos_range_name_points[k]
+			infos_orgin_axis_points = []
+			infos_loacte_points = []
+			for w in range(range_of_name_points[0], range_of_name_points[1]):
+				if lines_in_selected_file[w].find('ORIGIN') != -1:
+					infos_orgin_axis_points.append(lines_in_selected_file[w])
+					infos_loacte_points.append(w)
+					
+			if len(infos_orgin_axis_points) == 1:
+				infos_locate_of_points.append([range_of_name_points[0], infos_loacte_points[0]])
+#				tokens_axis_points = infos_orgin_axis_points[0].split('	')
+#				print(tokens_axis_points)
+#				new_points_origin = base.Newpoint(float(tokens_axis_points[1]), float(tokens_axis_points[2]), float(tokens_axis_points[3]))
+#				base.SetEntityCardValues(deck_infos, new_points_origin, {'Name': lines_in_selected_file[range_of_name_points[0]]})
+			else:
+				print(lines_in_selected_file[range_of_name_points[0]] + 'Not found axis of points')
+	
+	return infos_locate_of_points
+	
+########## Tìm vị trí tên của điểm point trong file
+def find_location_of_name_points(input_name_search, lines_in_selected_file):
+	
+	infos_location_name_req = []
+	for i in range(0, len(lines_in_selected_file), 1):
+		if lines_in_selected_file[i].find(input_name_search) != -1:
+			infos_location_name_req.append(i)
+	
+	if len(infos_location_name_req)>0:
+		infos_location_name_req.append(len(lines_in_selected_file))
+	
+	return infos_location_name_req
+
+##### Mở file
+def open_entity_file_func(path_entity_file):
+	
+	total_entity_lines_req = []
+	open_entity_file = open(path_entity_file, 'r')
+	lines_of_entity_file = open_entity_file.readlines()
+	for i in range(0, len(lines_of_entity_file), 1):
+		total_entity_lines_req.append(lines_of_entity_file[i].strip())
+#		print(lines_of_entity_file[i].strip())
+	open_entity_file.close()
+	
+	return total_entity_lines_req
+	
+Change_Axis_Point_Tire()
+Change_Axis_Point_Tire
+
+
