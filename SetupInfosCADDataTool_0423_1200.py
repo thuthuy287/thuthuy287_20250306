@@ -2346,3 +2346,1011 @@ Change_Axis_Point_Tire()
 Change_Axis_Point_Tire
 
 
+
+
+D:\Kyty180389\Script\02.Cad Assembly Tool
+
+
+# PYTHON script
+import ansa
+from ansa import guitk
+from ansa import constants
+from ansa import base
+from ansa import session
+from ansa import utils
+
+import os
+from os import path
+import shutil
+ 
+def CADAssemblyTool():
+	CVals_5 = ["CATPart To ANSA", "Auto Setup PID"]
+	TopWindow = guitk.BCWindowCreate("CAD Assembly Tool version 1.0", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Options Tool", guitk.constants.BCHorizontal)
+	BCLabel_1 = guitk.BCLabelCreate(BCButtonGroup_1, "Options: ")
+	BCComboBox_1 = guitk.BCComboBoxCreate(BCButtonGroup_1, CVals_5)
+	
+	BCButtonGroup_2 = guitk.BCButtonGroupCreate(TopWindow, "Select Path BOM", guitk.constants.BCHorizontal)
+	BCLabel_2 = guitk.BCLabelCreate(BCButtonGroup_2, "Path BOM: ")
+	BCLineEditPath_1 = guitk.BCLineEditPathCreate(BCButtonGroup_2, guitk.constants.BCHistoryFiles, "Folder BOM", guitk.constants.BCHistorySelect, "Select BOM")
+	guitk.BCLineEditPathAddFilter(BCLineEditPath_1, "CSV File: ", 'csv')
+	
+	BCButtonGroup_3 = guitk.BCButtonGroupCreate(TopWindow, "Select Path CAD Data", guitk.constants.BCHorizontal)
+	BCLabel_3 = guitk.BCLabelCreate(BCButtonGroup_3, "CAD Data: ")
+	BCLineEditPath_2 = guitk.BCLineEditPathCreate(BCButtonGroup_3, guitk.constants.BCHistoryFolders, "Folder CAD", guitk.constants.BCHistorySelect, "Select CAD")
+	
+	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
+	BCLabel_4 = guitk.BCLabelCreate(TopWindow, "")
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	
+	DataOnTopWin = [BCProgressBar_1, BCLabel_4, BCLineEditPath_2, BCLineEditPath_1, BCComboBox_1]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, DataOnTopWin)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, DataOnTopWin)
+	
+	guitk.BCShow(TopWindow)
+
+
+def RejectFunc(TopWindow, DataOnTopWin):
+	
+	return 1
+
+def AcceptFunc(TopWindow, DataOnTopWin):
+	
+	ProgBar = 	DataOnTopWin[0]
+	StatusLabel = DataOnTopWin[1]
+	LineEditPathCad = DataOnTopWin[2]
+	LineEditPathBOM = DataOnTopWin[3]
+	OptionsListTool = guitk.BCComboBoxCurrentText(DataOnTopWin[4])
+	
+	if OptionsListTool == "CATPart To ANSA":
+		ConvertCATPartToANSATool(ProgBar, StatusLabel, LineEditPathBOM, LineEditPathCad)
+
+def ConvertCATPartToANSATool(ProgBar, StatusLabel, LineEditPathBOM, LineEditPathCad):
+	
+	PathCADSelected = guitk.BCLineEditPathSelectedFilePaths(LineEditPathCad)
+	PathBOMSelected = guitk.BCLineEditPathSelectedFilePaths(LineEditPathBOM)
+	if PathBOMSelected != None and PathCADSelected != None:
+		ListCATProductInBOM, ListCATPartInBOM, ListNameBOMLine, ListLevelBOMLine, ListLevelCATProductInBOM = GetInfoOfBOMListFunc(PathBOMSelected)
+		if len(ListCATProductInBOM) >0:
+	#		print(len(ListCATProductInBOM))
+	#		print(len(ListLevelCATProductInBOM))
+			
+			AutoConvertCATIAToANSAFunc(ProgBar, StatusLabel, ListCATProductInBOM, ListCATPartInBOM, ListNameBOMLine, ListLevelBOMLine, ListLevelCATProductInBOM, PathCADSelected)
+
+	else:
+		guitk.UserError('Please select Path BOM or Path CAD')	
+		return 0
+
+#************************* Convert cad sang file ansa
+def AutoConvertCATIAToANSAFunc(ProgBar, StatusLabel, ListCATProductInBOM, ListCATPartInBOM, ListNameBOMLine, ListLevelBOMLine, ListLevelCATProductInBOM, PathCADSelected):
+	
+	ListLinkFiles_NameCATProduct, ListLinkFiles_NameCATPart, ListNameFileTrimCATProduct, ListNameFileTrimCATPart = ReadInfoInPathCADFunc(PathCADSelected)
+	if len(ListLinkFiles_NameCATProduct) >0:
+#		print(len(ListLinkFiles_NameCATProduct))
+		DictLevels_InfosCATIAProduct, ListLevelCATProductCompare = CompareInfosBOMWithFolderCadFunc(ListCATProductInBOM, ListLevelCATProductInBOM, ListLinkFiles_NameCATProduct, ListNameFileTrimCATProduct)
+#		print(len(DictLevels_InfosCATIAProduct))
+		if len(DictLevels_InfosCATIAProduct) >0:
+			AutoTranslateToANSAFunc(ProgBar, StatusLabel, DictLevels_InfosCATIAProduct, ListLevelCATProductCompare, PathCADSelected)
+
+
+def AutoTranslateToANSAFunc(ProgBar, StatusLabel, DictLevels_InfosCATIAProduct, ListLevelCATProductCompare, PathCADSelected):
+	
+	ListLevelCATIAProductReverse = sorted(list(set(ListLevelCATProductCompare)), reverse = True)
+	
+	guitk.BCProgressBarReset(ProgBar)
+	guitk.BCProgressBarSetTotalSteps(ProgBar, len(ListLevelCATIAProductReverse))	
+	for i in range(0, len(ListLevelCATIAProductReverse), 1):
+		ValesInfosCATIAProduct = DictLevels_InfosCATIAProduct[ListLevelCATIAProductReverse[i]]
+#		print(len(ValesInfosCATIAProduct))
+		for k in range(0, len(ValesInfosCATIAProduct), 1):
+			guitk.BCLabelSetText(StatusLabel, 'Import File: ' + ValesInfosCATIAProduct[k][1])
+			
+			TokenPathCAD = PathCADSelected.split('/')
+			NameAssyCollect = TokenPathCAD[len(TokenPathCAD) - 1]
+			
+			PathFileCATIAProductImport = path.join(ValesInfosCATIAProduct[k][0], ValesInfosCATIAProduct[k][1])
+#			print(ValesInfosCATIAProduct[k][1])
+			FlagTranslate = AutoTranslateCADFunc(PathFileCATIAProductImport)
+			if FlagTranslate != False:
+				NameFolderANSA = 'ANSA'
+				NameFileANSA = ValesInfosCATIAProduct[k][1] + '.ansa'
+				PathNewFolderANSA = CreateNewFolderBaseOnLinkFunc(ValesInfosCATIAProduct[k][0], NameFolderANSA)
+			
+				if PathNewFolderANSA:
+					PathFileCATIAProductNew = path.join(PathNewFolderANSA, ValesInfosCATIAProduct[k][1])
+					shutil.move(PathFileCATIAProductImport,PathFileCATIAProductNew)
+					
+					SetupInfosCADPartFunc(NameAssyCollect)
+					
+					PathNewFileANSA = path.join(PathNewFolderANSA, NameFileANSA)
+					base.SaveAs(PathNewFileANSA)
+			
+			else:
+				print('Can not convert file CATIA')
+		
+		guitk.BCProgressBarSetProgress(ProgBar, i + 1)
+
+def SetupInfosCADPartFunc(NameAssyCollect):
+	
+	AnsaPartsInfos = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(AnsaPartsInfos) >0:
+		for i in range(0, len(AnsaPartsInfos), 1):
+			ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, AnsaPartsInfos[i], ['Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/StringMetaData/ITEM_ID', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material'])
+			
+			TokensNameParts = ValsPartCollect['Name'].split('_')
+			try:
+				ThicknessPart = ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]']
+			except:
+				ThicknessPart = 0.01
+			else:
+				if ThicknessPart != 0:
+					ThicknessPart = ThicknessPart
+				else:
+					ThicknessPart = 0.01
+	
+			try:
+				MatNamePart = ValsPartCollect['User/CAD/StringParameterData/ParameterSet\Material']
+			except:
+				MatNamePart = None
+			else:
+				MatNamePart = MatNamePart
+	
+			PropsInParts = base.CollectEntities(constants.LSDYNA, AnsaPartsInfos[i], '__PROPERTIES__', prop_from_entities = True)
+			for k in range(0, len(PropsInParts), 1):
+				ValsPropInPart = base.GetEntityCardValues(constants.LSDYNA, PropsInParts[k], ['Name', 'User/CAD/OriginalId'])
+				base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': TokensNameParts[0], 'User/original_name': NameAssyCollect})
+
+##### Divide group cad
+def DivideGroupCadOnPartFunc(AnsaPartsInfos, i):
+	
+	PropsDividePart = base.CollectEntities(constants.LSDYNA, AnsaPartsInfos[i], '__PROPERTIES__', prop_from_entities = True)
+	for k in range(0, len(PropsDividePart), 1):
+		DictGroupsOnProps = base.IsolateConnectivityGroups(PropsDividePart[k], separate_at_blue_bounds = 1, separate_at_pid_bounds = 1)
+		if len(DictGroupsOnProps) >1:
+			del DictGroupsOnProps['group_1']
+			for DictGroupName, DictGroupItems in DictGroupsOnProps.items():
+				PropsNewDivide = base.CopyEntity(None, PropsDividePart[k])
+				base.SetEntityCardValues(constants.LSDYNA, PropsNewDivide, {'User/cad_thickness': PropsDividePart[k]._id})
+				for w in range(0, len(DictGroupItems), 1):
+					base.SetEntityCardValues(constants.LSDYNA, DictGroupItems[w], {'PID': PropsNewDivide._id})
+	
+
+def AutoTranslateCADFunc(PathFileTranslate):
+	
+	session.New('discard')
+	FlagOpenCAD = base.Open(PathFileTranslate)
+	
+	if FlagOpenCAD == 0:
+		EntityGeoOnPart = base.CollectEntities(constants.LSDYNA, None, ['FACE', 'CURVE', 'POINT'])
+		if len(EntityGeoOnPart) >0:
+			FlagTranslate = True
+		else:
+			FlagTranslate = False
+	else:
+		FlagTranslate = False
+		
+	return FlagTranslate
+
+#************************** So sanh du lieu catproduct giua bom list va folder cad
+def CompareInfosBOMWithFolderCadFunc(ListCATProductInBOM, ListLevelCATProductInBOM, ListLinkFiles_NameCATProduct, ListNameFileTrimCATProduct):
+#	print(len(ListLinkFiles_NameCATProduct), len(ListNameFileTrimCATProduct))
+	
+	ListLevelCATProductCompare = []
+	ListFile_LinkCATProductCompare = []
+	
+	for i in range(0, len(ListNameFileTrimCATProduct), 1):
+		SingleFIleNameCATProduct = ListNameFileTrimCATProduct[i]
+		PosSearchCATIAProductInBOM = FindEntityInListElementsFunc(SingleFIleNameCATProduct, ListCATProductInBOM)
+		if PosSearchCATIAProductInBOM != None:
+			IndexLevelCATProductInBOM = ListLevelCATProductInBOM[PosSearchCATIAProductInBOM]
+			ListLevelCATProductCompare.append(IndexLevelCATProductInBOM)
+			ListFile_LinkCATProductCompare.append(ListLinkFiles_NameCATProduct[i])			
+#			ListLevelCATProductCompare.append(str(IndexLevelCATProductInBOM) + '_' + ListLinkFiles_NameCATProduct[i][0] + '_' + ListLinkFiles_NameCATProduct[i][1])
+
+		
+		else:
+			print(ListNameFileTrimCATProduct[i])
+	
+	DictLevels_InfosCATIAProduct = {}
+	if len(ListLevelCATProductCompare) >0:
+		ListLevelCATIAProductSort = sorted(list(set(ListLevelCATProductCompare)), reverse = True)
+		for k in range(0, len(ListLevelCATIAProductSort), 1):
+			ListLink_FIleCATProductDuplicateLevel = []
+			
+			for w in range(0, len(ListLevelCATProductCompare), 1):
+				if ListLevelCATProductCompare[w] == ListLevelCATIAProductSort[k]:
+					ListLink_FIleCATProductDuplicateLevel.append(ListFile_LinkCATProductCompare[w])
+			
+			if len(ListLink_FIleCATProductDuplicateLevel)>0:
+				DictLevels_InfosCATIAProduct[ListLevelCATIAProductSort[k]] = ListLink_FIleCATProductDuplicateLevel
+#				print(ListLevelCATIAProductSort[k], ListLink_FIleCATProductDuplicateLevel)
+	
+	return DictLevels_InfosCATIAProduct, ListLevelCATProductCompare
+	
+def ReadInfoInPathCADFunc(PathCADSelected):
+	
+	ListLinkFiles_NameCATPart = []
+	ListLinkFiles_NameCATProduct = []
+	ListNameFileTrimCATProduct = []
+	ListNameFileTrimCATPart = []
+	
+	ObjectInfosInPath = os.walk(PathCADSelected)
+	for root, directories, files in ObjectInfosInPath:
+		ListCATPartInFolder = []
+		ListCATProductInFolder = []
+		
+		for i in range(0, len(files), 1):
+			if files[i].endswith('.CATProduct'):
+				ListCATProductInFolder.append(files[i])
+				ListLinkFiles_NameCATProduct.append([root, files[i]])
+				ListNameFileTrimCATProduct.append(files[i].split('_')[0])
+#				ListNameFileTrimCATProduct.append(files[i][0 : len(files[i]) - len('.CATProduct')])
+				
+			elif files[i].endswith('.CATPart') or files[i].endswith('.model'):
+				ListCATPartInFolder.append(files[i])
+				ListLinkFiles_NameCATPart.append([root, files[i]])
+				ListNameFileTrimCATPart.append(files[i].split('_')[0])
+#				ListNameFileTrimCATPart.append(files[i][0 : len(files[i]) - len('.CATPart')])
+			
+			elif files[i].endswith('.model'):
+				ListCATPartInFolder.append(files[i])
+				ListLinkFiles_NameCATPart.append([root, files[i]])
+				ListNameFileTrimCATPart.append(files[i].split('_')[0])
+#				ListNameFileTrimCATPart.append(files[i][0 : len(files[i]) - len('.model')])
+
+		if len(ListCATPartInFolder)>0 or len(ListCATProductInFolder)>0:
+			continue
+		
+		else:
+			if len(directories) == 0:
+				print(root + 'Invalid CAD data')
+
+	return ListLinkFiles_NameCATProduct, ListLinkFiles_NameCATPart, ListNameFileTrimCATProduct, ListNameFileTrimCATPart
+
+#************************* Lay thong tin CATProcut va CATPart
+def GetInfoOfBOMListFunc(PathBOMSelected):
+	
+	ListCATProductInBOM = []
+	ListLevelCATProductInBOM = []
+	ListCATPartInBOM = []	
+	InfosLinesBOM = ReadInfoCsvFunc(PathBOMSelected)
+	if len(InfosLinesBOM)>0:
+		NumRow1st, ListNumnerColm = FindInfosOfRow1stFunc(InfosLinesBOM)
+		
+		if NumRow1st != None:
+			ListNameBOMLine, ListLevelBOMLine = FindInfoCATIANameInBOMFunc(NumRow1st, ListNumnerColm, InfosLinesBOM, ListCATProductInBOM, ListCATPartInBOM, ListLevelCATProductInBOM)
+	
+	
+	return ListCATProductInBOM, ListCATPartInBOM, ListNameBOMLine, ListLevelBOMLine, ListLevelCATProductInBOM
+
+def FindInfoCATIANameInBOMFunc(NumRow1st, ListNumnerColm, InfosLinesBOM, ListCATProductInBOM, ListCATPartInBOM, ListLevelCATProductInBOM):
+	
+	ListLevelBOMLine = []
+	ListNameBOMLine = []
+	ListNameParentLine = []
+	
+	for i in range(NumRow1st + 1, len(InfosLinesBOM), 1):
+		SplitBOMLines = InfosLinesBOM[i].split(',')
+		if SplitBOMLines[ListNumnerColm[0]] != '':
+			ListLevelBOMLine.append(int(SplitBOMLines[ListNumnerColm[0]]))
+			ListNameBOMLine.append(SplitBOMLines[ListNumnerColm[1]])
+#			ListNameBOMLine.append(SplitBOMLines[ListNumnerColm[1]].replace('/', '_').replace('-', '_'))
+	
+	if len(ListLevelBOMLine) >0:
+		GetInfoLayerOfBOMFunc(ListLevelBOMLine, ListNameBOMLine, ListCATProductInBOM, ListCATPartInBOM, ListLevelCATProductInBOM)
+	
+	return ListNameBOMLine, ListLevelBOMLine
+	
+def GetInfoLayerOfBOMFunc(ListLevelBOMLine, ListNameBOMLine, ListCATProductInBOM, ListCATPartInBOM, ListLevelCATProductInBOM):
+	
+	for i in range(0, len(ListLevelBOMLine), 1):
+		ValueIndexLevel = int(ListLevelBOMLine[i])
+		try:
+			ValueNextLevel = int(ListLevelBOMLine[i+1])
+		except:
+			ValueNextLevel = None
+		else:
+			ValueNextLevel = ValueNextLevel
+		
+		if ValueNextLevel != None:
+			if ValueIndexLevel < ValueNextLevel:
+#				print(ValueIndexLevel, ListNameBOMLine[i])
+				ListCATProductInBOM.append(ListNameBOMLine[i].split('_')[0])
+				ListLevelCATProductInBOM.append(ListLevelBOMLine[i])
+#				ListCATProductInBOM.append(ListNameBOMLine[i])
+			else:
+				ListCATPartInBOM.append(ListNameBOMLine[i])		
+		
+		else:
+			if ValueIndexLevel != int(ListLevelBOMLine[i-1]):
+#				ListCATProductInBOM.append(ListNameBOMLine[i])
+				ListCATProductInBOM.append(ListNameBOMLine[i].split('_')[0])
+				ListLevelCATProductInBOM.append(ListLevelBOMLine[i])
+			else:
+				ListCATPartInBOM.append(ListNameBOMLine[i])			
+
+def FindInfosOfRow1stFunc(InfosLinesBOM):
+	
+	for i in range(0, len(InfosLinesBOM), 1):
+		if InfosLinesBOM[i].find('Level') != -1 and InfosLinesBOM[i].find('BOM Line') != -1:
+			SplitBOMLines1st = InfosLinesBOM[i].split(',')
+			ListNumnerColm = []
+			for k in range(0, len(SplitBOMLines1st), 1):
+				if SplitBOMLines1st[k] == 'Level':
+					ListNumnerColm.append(k)
+				if SplitBOMLines1st[k] == 'BOM Line':
+					ListNumnerColm.append(k)
+					
+			return i, ListNumnerColm
+
+#*********************** Help Funtions****************************
+#*********************** Tao Folder Moi dua theo link va ten co san. Gia tri tra ve la link folder moi.
+
+def CreateNewFolderBaseOnLinkFunc(FolderLink, FolderName):
+	
+	NewPathFolder = path.join(FolderLink, FolderName)
+	if not path.exists(NewPathFolder):
+		os.makedirs(NewPathFolder)
+	
+	else:
+		NewPathFolder = NewPathFolder
+	
+	return NewPathFolder
+
+def ReadInfoCsvFunc(PathCsv):
+	
+	OpenCSVFile = open(PathCsv)
+	ReadLinesCSV = OpenCSVFile.readlines()
+	
+	ListLinesInCSV = []
+	for i in range(0, len(ReadLinesCSV), 1):
+		ListLinesInCSV.append(ReadLinesCSV[i].strip().replace('/', '_').replace('-', '_'))
+
+	OpenCSVFile.close()
+	
+	return ListLinesInCSV
+
+def FindEntityInListElementsFunc(EntityElement, ListElements):
+	
+	try:
+		Pos = ListElements.index(EntityElement)
+	except:
+		Pos = None
+	else:
+		Pos = Pos
+	
+	return Pos
+	
+CADAssemblyTool()
+CadAssemblyTool_ver01_1807
+
+
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+from os import path
+import shutil
+
+def MoveFuncAssyBaseOnBOM():
+	# Need some documentation? Run this with F5
+
+#	PathBOM = "E:/SUV_AWD/BOMlist-TOPVIU0010-001.004-VIRTUAL_VEHICLE_SUV_AWD.csv"
+#	PathAssyTemplate = "E:/SUV_AWD/Group Assy Template.csv"
+#	PathCADSelected = 'E:/SUV_AWD/CHASSIS'
+
+	PathBOM = "E:\SUV_AWD\BOMlist-TOPVIU0010-001.004-VIRTUAL_VEHICLE_SUV_AWD.csv"
+	PathCADSelected = 'E:\SUV_AWD\CHASSIS'
+	
+	
+	InfosLinesBOM = ReadInfoCsvFunc(PathBOM)
+	
+	if len(InfosLinesBOM)>0:
+		ListNameBOMLine, ListLevelBOMLine = GetInfoOfBOMListFunc(InfosLinesBOM)
+		if len(ListLevelBOMLine) >0:
+			ListAssyInBOMList, ListBOMLineReplace = GetInfoLayer_EntityElementsInBOMFunc(ListNameBOMLine, ListLevelBOMLine)
+			if len(ListBOMLineReplace) >0:
+#				print(ListBOMLineReplace)
+				MoveGroupAssyBaseOnListTemplateFunc(ListAssyInBOMList, ListBOMLineReplace, PathCADSelected)
+
+#************************** Move file theo tung folder assy
+def MoveGroupAssyBaseOnListTemplateFunc(ListAssyInBOMList, ListBOMLineReplace, PathCADSelected):
+	
+		ListFilesExtensionCATIA, ListPathFileExtension, ListAllsFilesCATIAInFolder = ListAllFilesInFolderFunc(PathCADSelected)
+		if len(ListAllsFilesCATIAInFolder) >0:
+			for i in range(0, len(ListFilesExtensionCATIA), 1):
+				PosSearchNameCATIA = FindEntityInListElementsFunc(ListFilesExtensionCATIA[i], ListBOMLineReplace)
+	#			print(PosSearchNameCATIA)
+				if PosSearchNameCATIA != None:
+					NameFolderFuncAssy = ListAssyInBOMList[PosSearchNameCATIA]
+					PathFolderAssyName = CreateNewFolderBaseOnLinkFunc(PathCADSelected, NameFolderFuncAssy)
+					if PathFolderAssyName:
+						PathFileCATIAOld = ListPathFileExtension[i]
+						PathFileCATIANew = path.join(PathFolderAssyName, ListAllsFilesCATIAInFolder[i])
+						shutil.move(PathFileCATIAOld, PathFileCATIANew)
+
+def ListAllFilesInFolderFunc(PathCADSelected):
+	
+	ListFilesExtensionCATIA = []
+	ListPathFileExtension = []
+	ListAllsFilesCATIAInFolder = []
+	
+	ObjectInfosInPath = os.walk(PathCADSelected)
+	for root, directories, files in ObjectInfosInPath:
+		
+		for i in range(0, len(files), 1):
+			if files[i].endswith('.CATProduct'):
+				ListPathFileExtension.append(path.join(root, files[i]))
+				NameFileCATProduct = files[i][0 : len(files[i]) - len('.CATProduct')]
+				ListAllsFilesCATIAInFolder.append(files[i])
+				
+				NameCATProductReplace = TrimNameBOMLineWithSpaceFunc(NameFileCATProduct)
+				if NameCATProductReplace == '':
+					NameCATProductReplace = NameFileCATProduct
+				ListFilesExtensionCATIA.append(NameCATProductReplace)
+				
+			elif files[i].endswith('.model'):
+				ListPathFileExtension.append(path.join(root, files[i]))
+				NameFileCATModel = files[i][0 : len(files[i]) - len('.model')]
+				ListAllsFilesCATIAInFolder.append(files[i])
+				
+				NameCATModelReplace = TrimNameBOMLineWithSpaceFunc(NameFileCATModel)
+				if NameCATModelReplace == '':
+					NameCATModelReplace = NameFileCATModel
+				ListFilesExtensionCATIA.append(NameCATModelReplace)
+				
+			elif files[i].endswith('.CATPart'):
+				ListPathFileExtension.append(path.join(root, files[i]))
+				NameFileCATPart = files[i][0 : len(files[i]) - len('.CATPart')]
+				ListAllsFilesCATIAInFolder.append(files[i])
+				
+				NameCATPartReplace = TrimNameBOMLineWithSpaceFunc(NameFileCATPart)
+				if NameCATPartReplace == '':
+					NameCATPartReplace = NameFileCATPart
+				ListFilesExtensionCATIA.append(NameCATPartReplace)
+	
+	return ListFilesExtensionCATIA, ListPathFileExtension, ListAllsFilesCATIAInFolder	
+
+#************************** Lay thong tin cac dong trong bom list
+def GetInfoLayer_EntityElementsInBOMFunc(ListNameBOMLine, ListLevelBOMLine):
+	
+	ListAssyInBOMList = []
+	ListBOMLineReplace = []
+	
+	ListElementInGroupBIW = FindEntityInGroupsBIWFunc(ListNameBOMLine, ListLevelBOMLine, ListAssyInBOMList, ListBOMLineReplace)
+	
+	FindEntityInOtherGroupsFunc(ListNameBOMLine, ListLevelBOMLine, ListAssyInBOMList, ListBOMLineReplace, ListElementInGroupBIW)
+	
+	return ListAssyInBOMList, ListBOMLineReplace
+	
+def FindEntityInOtherGroupsFunc(ListNameBOMLine, ListLevelBOMLine, ListAssyInBOMList, ListBOMLineReplace, ListElementInGroupBIW):
+	
+	ListStepOtherGroup = []
+	for i in range(0, len(ListLevelBOMLine), 1):
+		if ListLevelBOMLine[i] == 3:
+			ListStepOtherGroup.append(i)
+	
+	if len(ListStepOtherGroup) >0:
+		ListStepOtherGroup.append(len(ListLevelBOMLine))
+		for k in range(0, len(ListStepOtherGroup) -1, 1):
+			ListElementInOtherGroup = []
+			for j in range(ListStepOtherGroup[k], ListStepOtherGroup[k+1], 1):
+				NameElementInOtherGroup = ListNameBOMLine[j]
+				LevelOfElemOtherGroup = int(ListLevelBOMLine[j])
+				
+				PosSearchInGroupBIW =  FindEntityInListElementsFunc(NameElementInOtherGroup, ListElementInGroupBIW)
+				if PosSearchInGroupBIW == None:
+					if LevelOfElemOtherGroup != 1 and LevelOfElemOtherGroup != 2:
+						NameBOMOtherGroupReplace = TrimNameBOMLineWithSpaceFunc(NameElementInOtherGroup)
+						if NameBOMOtherGroupReplace == '':
+							NameBOMOtherGroupReplace = NameElementInOtherGroup
+						ListElementInOtherGroup.append(NameBOMOtherGroupReplace)
+			
+			if len(ListElementInOtherGroup) >0:
+				for w in range(0, len(ListElementInOtherGroup), 1):
+					ListAssyInBOMList.append(ListElementInOtherGroup[0])
+					ListBOMLineReplace.append(ListElementInOtherGroup[w])
+#					print(ListElementInOtherGroup[0], ListElementInOtherGroup[w])
+	
+def FindEntityInGroupsBIWFunc(ListNameBOMLine, ListLevelBOMLine, ListAssyInBOMList, ListBOMLineReplace):
+	
+	ListElementInGroupBIW = []
+	ListStepBIW = []
+	for i in range(0, len(ListLevelBOMLine), 1):
+		if ListLevelBOMLine[i] == 1:
+			ListStepBIW.append(i)
+			
+	if len(ListStepBIW) >0:
+		ListStepBIW.append(len(ListLevelBOMLine))
+		
+		for k in range(0, len(ListStepBIW) -1, 1):
+			if ListNameBOMLine[ListStepBIW[k]].find('BODY_IN_WHITE') != -1 or ListNameBOMLine[ListStepBIW[k]].find('BIW') != -1:
+#				print(ListStepBIW[k], ListStepBIW[k+1])
+				NameAssyBIW = 'BIW'
+				for j in range(ListStepBIW[k], ListStepBIW[k+1], 1):
+					ListAssyInBOMList.append(NameAssyBIW)
+					NameFileBOMBiwTrim = ListNameBOMLine[j]
+					NameFileBIWRemoveSpace = TrimNameBOMLineWithSpaceFunc(NameFileBOMBiwTrim)
+					if NameFileBIWRemoveSpace == '':
+						NameFileBIWRemoveSpace = NameFileBOMBiwTrim
+					
+					ListBOMLineReplace.append(NameFileBIWRemoveSpace)
+					
+	#				print(NameFileBIWRemoveSpace,NameAssyBIW)
+					
+					ListElementInGroupBIW.append(ListNameBOMLine[j])
+					
+	return ListElementInGroupBIW
+
+def TrimNameBOMLineWithSpaceFunc(NameFileNeedTrim):
+	
+	NameFileRemoveSpace = ''
+	NameElementReplace = NameFileNeedTrim.replace('/', '_').replace('-', '_')
+	TokenStringName = NameElementReplace.split('_')
+	ListLenRemove = []
+	ListStepDivideBySpace = []
+	for i in range(0, len(TokenStringName), 1):
+		if TokenStringName[i] == '':
+			ListStepDivideBySpace.append(i)
+	
+	if len(ListStepDivideBySpace) >0:
+		for k in range(0, min(ListStepDivideBySpace), 1):
+			ListLenRemove.append(len(TokenStringName[k]))
+#			print(TokenStringName[k], len(TokenStringName[k]), k)
+	
+	if len(ListLenRemove) >0:
+		NameFileRemoveSpace = NameElementReplace[0: sum(ListLenRemove) + min(ListStepDivideBySpace) - 1]
+
+	return NameFileRemoveSpace
+	
+#************************** Lay thong tin CATIA trong BOM List
+def GetInfoOfBOMListFunc(InfosLinesBOM):
+	
+	NumRow1st, ListNumnerColm = FindInfosOfRow1stFunc(InfosLinesBOM)
+		
+	if NumRow1st != None:
+		ListNameBOMLine, ListLevelBOMLine = FindInfoCATIANameInBOMFunc(NumRow1st, ListNumnerColm, InfosLinesBOM)
+	
+	return ListNameBOMLine, ListLevelBOMLine
+	
+def FindInfoCATIANameInBOMFunc(NumRow1st, ListNumnerColm, InfosLinesBOM):
+	
+	ListLevelBOMLine = []
+	ListNameBOMLine = []
+	ListNameParentLine = []
+	
+	for i in range(NumRow1st + 1, len(InfosLinesBOM), 1):
+		SplitBOMLines = InfosLinesBOM[i].split(',')
+		if SplitBOMLines[ListNumnerColm[0]] != '':
+			ListLevelBOMLine.append(int(SplitBOMLines[ListNumnerColm[0]]))
+			ListNameBOMLine.append(SplitBOMLines[ListNumnerColm[1]])
+	
+	return ListNameBOMLine, ListLevelBOMLine
+			
+def FindInfosOfRow1stFunc(InfosLinesBOM):
+	
+	for i in range(0, len(InfosLinesBOM), 1):
+		if InfosLinesBOM[i].find('Level') != -1 and InfosLinesBOM[i].find('BOM Line') != -1:
+			SplitBOMLines1st = InfosLinesBOM[i].split(',')
+			ListNumnerColm = []
+			for k in range(0, len(SplitBOMLines1st), 1):
+				if SplitBOMLines1st[k] == 'Level':
+					ListNumnerColm.append(k)
+				if SplitBOMLines1st[k] == 'BOM Line':
+					ListNumnerColm.append(k)	
+					
+			return i, ListNumnerColm
+
+#******************************* Help Function
+def FindEntityInListElementsFunc(EntityElement, ListElements):
+	
+	try:
+		Pos = ListElements.index(EntityElement)
+	except:
+		Pos = None
+	else:
+		Pos = Pos
+	
+	return Pos		
+	
+def ReadInfoCsvFunc(PathCsv):
+
+	OpenCSVFile = open(PathCsv)
+	ReadLinesCSV = OpenCSVFile.readlines()
+	
+	ListLinesInCSV = []
+	for i in range(0, len(ReadLinesCSV), 1):
+		ListLinesInCSV.append(ReadLinesCSV[i].strip())
+
+	OpenCSVFile.close()
+	
+	return ListLinesInCSV
+
+#*********************** Tao Folder Moi dua theo link va ten co san. Gia tri tra ve la link folder moi
+def CreateNewFolderBaseOnLinkFunc(FolderLink, FolderName):
+	
+	NewPathFolder = path.join(FolderLink, FolderName)
+	if not path.exists(NewPathFolder):
+		os.makedirs(NewPathFolder)
+	
+	else:
+		NewPathFolder = NewPathFolder
+	
+	return NewPathFolder
+	
+MoveFuncAssyBaseOnBOM()
+
+MoveFuncAssyBaseOnBOM_0715
+
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+def main():
+	# Need some documentation? Run this with F5
+	
+	ListPartSPOTs = []
+	ListPartCONNECTIONs = []
+	ListPartSEALING = []
+	ListPartINSULs = []
+	ListPartNeedCreate = []
+	
+	AnsaPartsInfos = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(AnsaPartsInfos)>0:
+		for i in range(0, len(AnsaPartsInfos), 1):
+#			PropsInParts = base.CollectEntities(constants.LSDYNA, AnsaPartsInfos[i], '__PROPERTIES__', prop_from_entities = True)
+#			if len(PropsInParts)>0:
+#				for k in range(0, len(PropsInParts), 1):
+#					
+#					DivideLeftRightPropsFunc(PropsInParts, k)
+					
+			DividePartNeedCreateFunc(AnsaPartsInfos, i, ListPartSPOTs, ListPartCONNECTIONs, ListPartSEALING, ListPartINSULs, ListPartNeedCreate)
+	
+	if len(ListPartSPOTs) >0:
+		base.Or(ListPartSPOTs)
+		base.NewGroupFromVisible('Groups SPOT', '')
+	
+	if len(ListPartCONNECTIONs) >0:
+		base.Or(ListPartCONNECTIONs)
+		base.NewGroupFromVisible('Groups CONNECTIONs', '')
+	
+	if len(ListPartSEALING) >0:
+		base.Or(ListPartSEALING)
+		base.NewGroupFromVisible('Groups SEAL', '')
+
+	if len(ListPartINSULs) >0:
+		base.Or(ListPartINSULs)
+		base.NewGroupFromVisible('Groups INSUL', '')
+	
+	if len(ListPartNeedCreate) >0:
+		base.Or(ListPartNeedCreate)
+		base.NewGroupFromVisible('Groups NEED', '')
+
+def DividePartNeedCreateFunc(AnsaPartsInfos, i, ListPartSPOTs, ListPartCONNECTIONs, ListPartSEALING, ListPartINSULs, ListPartNeedCreate):
+	
+	ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, AnsaPartsInfos[i], ['User/CAD/StringMetaData/PART_TYPE', 'User/CAD/StringMetaData/Nomenclature'])
+	NomenClatureParts = ValsPartCollect['User/CAD/StringMetaData/Nomenclature']
+	try:
+		TypeSpot = ValsPartCollect['User/CAD/StringMetaData/PART_TYPE']
+	except:
+		TypeSpot = None
+	else:
+		TypeSpot = TypeSpot
+		
+	if NomenClatureParts.find('BOLT') != -1 or NomenClatureParts.find('NUT') != -1 or NomenClatureParts.find('SCREW') != -1 or NomenClatureParts.find('CLIP') != -1 or NomenClatureParts.find('STUD') != -1 or NomenClatureParts.find('PLUG') != -1:
+		ListPartCONNECTIONs.append(AnsaPartsInfos[i])
+
+	elif NomenClatureParts.find('SEAL') != -1:
+		ListPartSEALING.append(AnsaPartsInfos[i])
+	elif NomenClatureParts.find('INSUL') != -1:
+		ListPartINSULs.append(AnsaPartsInfos[i])
+	
+	else:
+		PropsOnOtherPart = base.CollectEntities(constants.LSDYNA, AnsaPartsInfos[i], '__PROPERTIES__', prop_from_entities = True)
+		if len(PropsOnOtherPart) >0:
+			for k in range(0, len(PropsOnOtherPart), 1):
+				FacesInOtherProps = base.CollectEntities(constants.LSDYNA, PropsOnOtherPart[k], 'FACE')
+				ValsPropsOtherPart = base.GetEntityCardValues(constants.LSDYNA, PropsOnOtherPart[k], ['Name', 'User/CAD/Name'])
+				NamePropsOtherPart = ValsPropsOtherPart['User/CAD/Name']
+				if NamePropsOtherPart.find('BOLT') != -1 or NamePropsOtherPart.find('NUT') != -1 or NamePropsOtherPart.find('SCREW') != -1 or NamePropsOtherPart.find('CLIP') != -1 or NamePropsOtherPart.find('STUD') != -1 or NamePropsOtherPart.find('FLUG') != -1 or NamePropsOtherPart.find('STD') != -1:
+					NameConnection = 'CONNECTIONS_' + str(PropsOnOtherPart[k]._id)
+					PartInfosConnection = CreateNewPartFunc(NameConnection)
+					if PartInfosConnection != None:
+						base.SetEntityPart(FacesInOtherProps, PartInfosConnection)
+						ListPartCONNECTIONs.append(PartInfosConnection)
+						
+				elif NamePropsOtherPart.find('SEAL') != -1:
+					NameSealing = 'SEAL_' + str(PropsOnOtherPart[k]._id)
+					PartInfosSealing = CreateNewPartFunc(NameSealing)
+					if PartInfosSealing != None:
+						base.SetEntityPart(FacesInOtherProps, PartInfosSealing)
+						ListPartSEALING.append(PartInfosSealing)
+				elif NamePropsOtherPart.find('INSUL') != -1:
+					NameInsul = 'INSUL_' + str(PropsOnOtherPart[k]._id)
+					PartInfosInsul = CreateNewPartFunc(NameInsul)
+					if PartInfosInsul != None:
+						base.SetEntityPart(FacesInOtherProps, PartInfosInsul)
+						ListPartINSULs.append(PartInfosInsul)
+	
+	if TypeSpot == 'JOINING':
+		ListPartSPOTs.append(AnsaPartsInfos[i])		
+	else:
+		ListPartNeedCreate.append(AnsaPartsInfos[i])
+			
+def DivideLeftRightPropsFunc(PropsInParts, k):
+	
+	FacesInProps = base.CollectEntities(constants.LSDYNA, PropsInParts[k], 'FACE')
+	ConsOnProps = base.CollectEntities(constants.LSDYNA, FacesInProps, 'CONS')
+	HotPointsOnProps = base.CollectEntities(constants.LSDYNA, FacesInProps, 'HOT POINT')
+					
+	ListHotPoinsLH = []
+	ListHotPoinsRH = []
+	StatusDivide = ''
+	for w in range(0, len(HotPointsOnProps), 1):
+		ValsHotPoints = base.GetEntityCardValues(constants.LSDYNA, HotPointsOnProps[w], ['X', 'Y', 'Z'])
+		if ValsHotPoints['Y'] <0:
+			ListHotPoinsRH.append(HotPointsOnProps[w])
+		else:
+			ListHotPoinsLH.append(HotPointsOnProps[w])
+			
+	if len(ListHotPoinsRH) >0:
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'Labels': 'RH Part'})
+	if len(ListHotPoinsLH) >0:
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'Labels': 'LH Part'})
+	if len(ListHotPoinsRH) >0 and len(ListHotPoinsLH) >0:
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'Labels': 'Center Part'})
+
+
+def CreateNewPartFunc(NamePart):
+	
+	NewParts = base.NewPart(NamePart, '')
+	if NewParts == None:
+		EntityPart = base.NameToEnts(NamePart)
+		
+		NewParts = EntityPart[0]
+	
+	return NewParts
+
+if __name__ == '__main__':
+	main()
+MoveGroupAssy_0716
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+def main():
+	# Need some documentation? Run this with F5
+
+	PartsCollect = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(PartsCollect) >0:
+		
+		for i in range(0, len(PartsCollect), 1):
+			GetInfoOfPartsFunc(PartsCollect, i)
+
+
+def GetInfoOfPartsFunc(PartsCollect, i):
+	
+	ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, PartsCollect[i], ['Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/StringMetaData/ITEM_ID', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material'])
+#	print(ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]'])
+	
+	try:
+		ThicknessPart = ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]']
+	except:
+		ThicknessPart = 0.001
+	else:
+		ThicknessPart = ThicknessPart
+	
+	try:
+		MatNamePart = ValsPartCollect['User/CAD/StringParameterData/ParameterSet\Material']
+	except:
+		MatNamePart = None
+	else:
+		MatNamePart = MatNamePart
+#	'User/original_name': NameAssyCollect,
+	
+	PropsInParts = base.CollectEntities(constants.LSDYNA, PartsCollect[i], '__PROPERTIES__', prop_from_entities = True)
+	for k in range(0, len(PropsInParts), 1):
+		ValsPropInPart = base.GetEntityCardValues(constants.LSDYNA, PropsInParts[k], ['Name', 'User/CAD/OriginalId'])
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID']})
+		
+	for j in range(0, len(PropsInParts), 1):
+		DictGroupsOnProps = base.IsolateConnectivityGroups(PropsInParts[j], separate_at_blue_bounds = 1, separate_at_pid_bounds = 1)
+		if len(DictGroupsOnProps) >1:
+			del DictGroupsOnProps['group_1']
+			for DictGroupName, DictGroupItems in DictGroupsOnProps.items():
+				PropsNewDivide = base.CopyEntity(None, PropsInParts[j])
+				base.SetEntityCardValues(constants.LSDYNA, PropsNewDivide, {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID', 'User/cad_thickness': PropsInParts[j]._id]})
+				for w in range(0, len(DictGroupItems), 1):
+					base.SetEntityCardValues(constants.LSDYNA, DictGroupItems[w], {'PID': PropsNewDivide._id})
+					
+
+if __name__ == '__main__':
+	main()
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+def main():
+	# Need some documentation? Run this with F5
+
+	PartsCollect = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(PartsCollect) >0:
+		
+		for i in range(0, len(PartsCollect), 1):
+			GetInfoOfPartsFunc(PartsCollect, i)
+
+
+def GetInfoOfPartsFunc(PartsCollect, i):
+	
+	ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, PartsCollect[i], ['Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/StringMetaData/ITEM_ID', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material'])
+#	print(ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]'])
+	
+	try:
+		ThicknessPart = ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]']
+	except:
+		ThicknessPart = 0.001
+	else:
+		ThicknessPart = ThicknessPart
+	
+	try:
+		MatNamePart = ValsPartCollect['User/CAD/StringParameterData/ParameterSet\Material']
+	except:
+		MatNamePart = None
+	else:
+		MatNamePart = MatNamePart
+#	'User/original_name': NameAssyCollect,
+	
+	PropsInParts = base.CollectEntities(constants.LSDYNA, PartsCollect[i], '__PROPERTIES__', prop_from_entities = True)
+	for k in range(0, len(PropsInParts), 1):
+		ValsPropInPart = base.GetEntityCardValues(constants.LSDYNA, PropsInParts[k], ['Name', 'User/CAD/OriginalId'])
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID']})
+		
+	for j in range(0, len(PropsInParts), 1):
+		DictGroupsOnProps = base.IsolateConnectivityGroups(PropsInParts[j], separate_at_blue_bounds = 1, separate_at_pid_bounds = 1)
+		if len(DictGroupsOnProps) >1:
+			del DictGroupsOnProps['group_1']
+			for DictGroupName, DictGroupItems in DictGroupsOnProps.items():
+				PropsNewDivide = base.CopyEntity(None, PropsInParts[j])
+				base.SetEntityCardValues(constants.LSDYNA, PropsNewDivide, {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID', 'User/cad_thickness': PropsInParts[j]._id]})
+				for w in range(0, len(DictGroupItems), 1):
+					base.SetEntityCardValues(constants.LSDYNA, DictGroupItems[w], {'PID': PropsNewDivide._id})
+					
+
+if __name__ == '__main__':
+	main()
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+def main():
+	# Need some documentation? Run this with F5
+
+	PartsCollect = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(PartsCollect) >0:
+		
+		for i in range(0, len(PartsCollect), 1):
+			GetInfoOfPartsFunc(PartsCollect, i)
+
+
+def GetInfoOfPartsFunc(PartsCollect, i):
+	
+	ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, PartsCollect[i], ['Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/StringMetaData/ITEM_ID', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material'])
+#	print(ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]'])
+	
+	try:
+		ThicknessPart = ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]']
+	except:
+		ThicknessPart = 0.001
+	else:
+		ThicknessPart = ThicknessPart
+	
+	try:
+		MatNamePart = ValsPartCollect['User/CAD/StringParameterData/ParameterSet\Material']
+	except:
+		MatNamePart = None
+	else:
+		MatNamePart = MatNamePart
+#	'User/original_name': NameAssyCollect,
+	
+	PropsInParts = base.CollectEntities(constants.LSDYNA, PartsCollect[i], '__PROPERTIES__', prop_from_entities = True)
+	for k in range(0, len(PropsInParts), 1):
+		ValsPropInPart = base.GetEntityCardValues(constants.LSDYNA, PropsInParts[k], ['Name', 'User/CAD/OriginalId'])
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID']})
+		
+	for j in range(0, len(PropsInParts), 1):
+		DictGroupsOnProps = base.IsolateConnectivityGroups(PropsInParts[j], separate_at_blue_bounds = 1, separate_at_pid_bounds = 1)
+		if len(DictGroupsOnProps) >1:
+			del DictGroupsOnProps['group_1']
+			for DictGroupName, DictGroupItems in DictGroupsOnProps.items():
+				PropsNewDivide = base.CopyEntity(None, PropsInParts[j])
+				base.SetEntityCardValues(constants.LSDYNA, PropsNewDivide, {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID', 'User/cad_thickness': PropsInParts[j]._id]})
+				for w in range(0, len(DictGroupItems), 1):
+					base.SetEntityCardValues(constants.LSDYNA, DictGroupItems[w], {'PID': PropsNewDivide._id})
+					
+
+if __name__ == '__main__':
+	main()
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import base
+from ansa import constants
+
+def main():
+	# Need some documentation? Run this with F5
+
+	PartsCollect = base.CollectEntities(constants.LSDYNA, None, ['ANSAPART'])
+	if len(PartsCollect) >0:
+		
+		for i in range(0, len(PartsCollect), 1):
+			GetInfoOfPartsFunc(PartsCollect, i)
+
+
+def GetInfoOfPartsFunc(PartsCollect, i):
+	
+	ValsPartCollect = base.GetEntityCardValues(constants.LSDYNA, PartsCollect[i], ['Name', 'User/CAD/StringMetaData/Nomenclature', 'User/CAD/StringMetaData/ITEM_ID', 'User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]', 'User/CAD/StringParameterData/ParameterSet\Material'])
+#	print(ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]'])
+	
+	try:
+		ThicknessPart = ValsPartCollect['User/CAD/DoubleParameterData/ParameterSet\Thickness [mm]']
+	except:
+		ThicknessPart = 0.001
+	else:
+		ThicknessPart = ThicknessPart
+	
+	try:
+		MatNamePart = ValsPartCollect['User/CAD/StringParameterData/ParameterSet\Material']
+	except:
+		MatNamePart = None
+	else:
+		MatNamePart = MatNamePart
+#	'User/original_name': NameAssyCollect,
+	
+	PropsInParts = base.CollectEntities(constants.LSDYNA, PartsCollect[i], '__PROPERTIES__', prop_from_entities = True)
+	for k in range(0, len(PropsInParts), 1):
+		ValsPropInPart = base.GetEntityCardValues(constants.LSDYNA, PropsInParts[k], ['Name', 'User/CAD/OriginalId'])
+		base.SetEntityCardValues(constants.LSDYNA, PropsInParts[k], {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID']})
+		
+	for j in range(0, len(PropsInParts), 1):
+		DictGroupsOnProps = base.IsolateConnectivityGroups(PropsInParts[j], separate_at_blue_bounds = 1, separate_at_pid_bounds = 1)
+		if len(DictGroupsOnProps) >1:
+			del DictGroupsOnProps['group_1']
+			for DictGroupName, DictGroupItems in DictGroupsOnProps.items():
+				PropsNewDivide = base.CopyEntity(None, PropsInParts[j])
+				base.SetEntityCardValues(constants.LSDYNA, PropsNewDivide, {'PID': ValsPropInPart['User/CAD/OriginalId'], 'Name': ValsPartCollect['User/CAD/StringMetaData/Nomenclature'], 'T1': ThicknessPart, 'NLOC': 1, 'Comment': ValsPartCollect['User/CAD/StringMetaData/ITEM_ID', 'User/cad_thickness': PropsInParts[j]._id]})
+				for w in range(0, len(DictGroupItems), 1):
+					base.SetEntityCardValues(constants.LSDYNA, DictGroupItems[w], {'PID': PropsNewDivide._id})
+					
+
+if __name__ == '__main__':
+	main()
+
+SetupInfoCADPart_0716
