@@ -1,488 +1,1269 @@
+import ansa
+from ansa import *
+ 
+deck = constants.LSDYNA
+@session.defbutton('4_SPOT-WELD', 'DivideSpotWeldTool','Chia Spot theo vật liệu của chi tiết ....')
+def DivideSpotWeldTool():
+	TopWindow = guitk.BCWindowCreate("Divide SpotWeld Tool version 1.0", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, 'Select Options: ', guitk.constants.BCHorizontal)
+	BCCheckBox_1 = guitk.BCCheckBoxCreate(BCButtonGroup_1, 'ApllySpot')
+	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
+	BCLabel_1 = guitk.BCLabelCreate(TopWindow, "")
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	
+	_win = [BCProgressBar_1, BCLabel_1, BCCheckBox_1]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectClickButton, _win)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptClickButton, _win)
+		
+	guitk.BCShow(TopWindow)
+
+#************************************ Cancel Click Button******************************	
+def RejectClickButton(TopWindow, _win):
+	return 1
+
+#************************************ OK Click Button*********************************
+def AcceptClickButton(TopWindow, _win):
+	
+	ProBar = _win[0]
+	LabelStatus = _win[1]
+	AppySpotStatus = _win[2]
+	
+	ElemsSpot = base.PickEntities(deck, ['ELEMENT_SOLID'])
+	if ElemsSpot != None:
+		base.Or(ElemsSpot)
+		base.Near(radius = 5)
+		
+		MatVisbleOnModel = base.CollectEntities(deck, None, ['__MATERIALS__'], filter_visible = True)
+		for w in range(0, len(MatVisbleOnModel), 1):
+			if MatVisbleOnModel[w]._id == 19000000 or MatVisbleOnModel[w]._id == 91000001:
+				base.Not(MatVisbleOnModel[w])
+			
+		ElemsShellVis = base.CollectEntities(deck, None, ['ELEMENT_SHELL'], filter_visible = True)
+		guitk.BCProgressBarSetTotalSteps(ProBar, len(ElemsSpot))
+		for i in range(0, len(ElemsSpot), 1):
+			ListElemsProjected = FindElemsShellAroundSpotFunc(ElemsSpot, i, ElemsShellVis)
+#			print(ListElemsProjected)
+			if len(ListElemsProjected) != 2:
+				print('ERR_' + str(ElemsSpot[i]._id))
+			else:
+				SetInfosElemsSpotFunc(ListElemsProjected, ElemsSpot, i)
+				
+			print(str(i+1) + '/' + str(len(ElemsSpot)) + ':' + str(ElemsSpot[i]._id))
+			guitk.BCProgressBarSetProgress(ProBar, i+1)
+			
+
+def SetInfosElemsSpotFunc(ListElemsProjected, ElemsSpot, i):
+	
+	ValsElemsProj_1st = base.GetEntityCardValues(deck, ListElemsProjected[0], ['PID'])
+	ValsElemsProj_2nd = base.GetEntityCardValues(deck, ListElemsProjected[1], ['PID'])
+
+	PropsProj_1st = base.GetEntity(deck, 'SECTION_SHELL', int(ValsElemsProj_1st['PID']))
+	PropsProj_2nd = base.GetEntity(deck, 'SECTION_SHELL', int(ValsElemsProj_2nd['PID']))
+	
+	ValsProps1st = PropsProj_1st.get_entity_values(deck, {'SECID', 'MID'})
+	ValsProps2nd = PropsProj_2nd.get_entity_values(deck, {'SECID', 'MID'})
+	
+	ThicknessProps1st = str(ValsProps1st['SECID']._id)[4:8]
+	ThicknessProps2nd = str(ValsProps2nd['SECID']._id)[4:8]
+	ListThicknessAdd = [ThicknessProps1st, ThicknessProps2nd]
+	
+	MatOnProps1st = base.GetEntity(deck, '__MATERIALS__', int(ValsProps1st['MID']._id))
+	MatOnProps2nd = base.GetEntity(deck, '__MATERIALS__', int(ValsProps2nd['MID']._id))
+	
+	ValsMat1st = MatOnProps1st.get_entity_values(deck, {'SIGY'})
+	ValsMat2nd = MatOnProps2nd.get_entity_values(deck, {'SIGY'})
+	ListSIGY_MaterialAdd = [ValsMat1st['SIGY'], ValsMat2nd['SIGY']]
+	
+	ValsElemsSpotOld = ElemsSpot[i].get_entity_values(deck, ['PID'])
+	PropsOnElemsSpotOld = base.GetEntity(deck, 'SECTION_SOLID', int(ValsElemsSpotOld['PID']._id))
+	ValsPropsSpotOld = PropsOnElemsSpotOld.get_entity_values(deck, ['SECID', 'MID', 'Name'])
+	
+	IdPropsSpot = '9' + str(min(ListSIGY_MaterialAdd)).replace('.', '') + str(min(ListThicknessAdd))
+	
+	PropsAddToSpotElems = base.GetEntity(deck, 'SECTION_SOLID', int(IdPropsSpot))
+	if PropsAddToSpotElems != None:
+		PropsAddToSpotElems = PropsAddToSpotElems
+	else:
+		PropsAddToSpotElems = base.CreateEntity(deck, 'SECTION_SOLID', {'PID': int(IdPropsSpot)})
+	
+	ElemsSpot[i].set_entity_values(deck, {'PID': PropsAddToSpotElems._id})
+	PropsAddToSpotElems.set_entity_values(deck, {'Name': ValsPropsSpotOld['Name'], 'USER_SECID': 'SECTION', 'SECID': ValsPropsSpotOld['SECID'], 'MID': ValsPropsSpotOld['MID']})
+
+def FindElemsShellAroundSpotFunc(ElemsSpot, i, ElemsShellVis):
+	
+	ListElemsAddOnSpots = []
+	ListElemsAroundSpot = []
+	ListDistanceProjElems = []
+	
+	ShellOnSolids = mesh.CreateShellsOnSolidsPidSkin(solids = ElemsSpot[i], ret_ents = True)
+	for k in range(0, len(ShellOnSolids), 1):
+		CogOfShells = base.Cog(ShellOnSolids[k])
+				
+		ProjCogShellToElems = calc.ProjectPointsToElements(coordinates = CogOfShells, entities = ElemsShellVis, tolerance = 1)
+		if ProjCogShellToElems[0].entity != None:
+			ElemsProjected = ProjCogShellToElems[0].entity
+			DistanceProjected = ProjCogShellToElems[0].distance
+			ListElemsAroundSpot.append(ElemsProjected)
+			ListDistanceProjElems.append(DistanceProjected)
+			
+			ValsCommentElemProj = ElemsProjected.get_entity_values(deck, ['Comment'])
+			if ValsCommentElemProj['Comment'] == '':
+				ElemsProjected.set_entity_values(deck, {'Comment': DistanceProjected})
+			else:
+				if DistanceProjected < float(ValsCommentElemProj['Comment']):
+					ElemsProjected.set_entity_values(deck, {'Comment': DistanceProjected})
+	
+	if len(ListElemsAroundSpot) >0:
+		ListElemsAroundSpotRemoveDouble = list(set(ListElemsAroundSpot))
+		ListDistanceOnComment = []
+		DictElems_DistanceProject = {}
+		for i in range(0, len(ListElemsAroundSpotRemoveDouble), 1):
+			CommnentElemsAround = ListElemsAroundSpotRemoveDouble[i].get_entity_values(deck, ['Comment'])
+			ListDistanceOnComment.append(float(CommnentElemsAround['Comment']))
+			DictElems_DistanceProject[ListElemsAroundSpotRemoveDouble[i]] = float(CommnentElemsAround['Comment'])
+		
+		ListDistanceOnComment.sort()
+		min_distance_proj_1st = ListDistanceOnComment[0]
+		min_distance_proj_2nd = ListDistanceOnComment[1]
+		for ElemsProjection, DistanceProjection in DictElems_DistanceProject.items():
+			if DistanceProjection == min_distance_proj_1st or DistanceProjection == min_distance_proj_2nd:
+				ListElemsAddOnSpots.append(ElemsProjection)
+			
+			ElemsProjection.set_entity_values(deck, {'Comment': ''})
+		
+	base.DeleteEntity(ShellOnSolids, True)
+	
+	return ListElemsAddOnSpots
+
+#DivideSpotWeldTool()
+
+D:\Kyty180389\Script\19.Divide SpotWeld Tool
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# PYTHON script
+import ansa
+from ansa import *
+
+deck_infos = constants.LSDYNA
+@session.defbutton('4_MATERIAL', 'CompareMaterialTool','So sánh vật liệu của các chi tiết đối xứng ....')
+def CompareMaterialTool():
+	TopWindow = guitk.BCWindowCreate("Compare Material On Model Tool ver1.0", guitk.constants.BCOnExitDestroy)
+	
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Type Of Model:", guitk.constants.BCHorizontal)
+	BCRadioButton_1 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "NVH Model", None, 0)
+	BCRadioButton_2 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Crash Model", None, 0)
+	guitk.BCRadioButtonSetChecked(BCRadioButton_1, True)
+	
+	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
+	BCLabel_1 = guitk.BCLabelCreate(TopWindow, "")
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	
+	_window = [BCProgressBar_1, BCLabel_1, BCRadioButton_1, BCRadioButton_2]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
+	
+	guitk.BCShow(TopWindow)
+
+def RejectFunc(TopWindow, _window):
+	return 1
+	
+#***************** Khoi dong giao dien nguoi dung
+def AcceptFunc(TopWindow, _window):
+	
+	ProbarStatus = _window[0]
+	LabelStatus = _window[1]
+	NVH_ModelStatus = guitk.BCRadioButtonIsChecked(_window[2])
+	Crash_ModelStatus = guitk.BCRadioButtonIsChecked(_window[3])
+	
+	AllsProps = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'], filter_visible = True)
+#	AllsProps = base.CollectEntities(deck, None, ['__PROPERTIES__'])
+	if len(AllsProps) >0:
+		ListPropsLH_Side, ListPropsRH_Side, ListPropsCommon_Side = FindPropsLH_RHSideFunc(AllsProps, LabelStatus, ProbarStatus)
+		if len(ListPropsLH_Side) >0 and len(ListPropsRH_Side) >0:
+			
+			ListPairsPidsPenetration = FindPairsPropsIntersectionFunc(ListPropsLH_Side, ListPropsRH_Side)
+#			print(ListPairsPidsPenetration)
+			if ListPairsPidsPenetration != None:
+				ListPairPropsSimilarsReq = FindPairsPropsSimilarFunc(ListPairsPidsPenetration, ProbarStatus, LabelStatus)
+#				print(ListPairPropsSimilarsReq)
+				if len(ListPairPropsSimilarsReq) >0:
+					CompareMaterialOfPairsPropsFunc(ListPairPropsSimilarsReq, NVH_ModelStatus, Crash_ModelStatus)
+				
+					guitk.BCLabelSetText(LabelStatus, 'Done ^..^....Check Status In Comment Properties....:')
+				
+########## Comapre materials of pid in model lh, rh
+def CompareMaterialOfPairsPropsFunc(ListPairPropsSimilarsReq, NVH_ModelStatus, Crash_ModelStatus):
+	
+	for i in range(0, len(ListPairPropsSimilarsReq), 1):
+		if NVH_ModelStatus == True:
+			vals_props_compare_1st = base.GetEntityCardValues(constants.NASTRAN, ListPairPropsSimilarsReq[i][0], ['T'])
+			vals_props_compare_2nd = base.GetEntityCardValues(constants.NASTRAN, ListPairPropsSimilarsReq[i][1], ['T'])
+#			print(ListPairPropsSimilarsReq[i])
+#			print(vals_props_compare_1st, vals_props_compare_2nd)
+			if vals_props_compare_1st['T'] != vals_props_compare_2nd['T']:
+				ListPairPropsSimilarsReq[i][0].set_entity_values(constants.NASTRAN, {'Comment': 'Diff_Thickness'})
+				ListPairPropsSimilarsReq[i][1].set_entity_values(constants.NASTRAN, {'Comment': 'Diff_Thickness'})
+			
+		if Crash_ModelStatus == True:
+			vals_props_compare_1st = base.GetEntityCardValues(deck_infos, ListPairPropsSimilarsReq[i][0], ['SECID', 'MID'])
+			vals_props_compare_2nd = base.GetEntityCardValues(deck_infos, ListPairPropsSimilarsReq[i][1], ['SECID', 'MID'])
+			if vals_props_compare_1st['MID'] != vals_props_compare_2nd['MID']:
+				ListPairPropsSimilarsReq[i][0].set_entity_values(deck_infos, {'Comment': 'Diff_MAT'})
+				ListPairPropsSimilarsReq[i][1].set_entity_values(deck_infos, {'Comment': 'Diff_MAT'})
+				
+			if vals_props_compare_1st['SECID'] != vals_props_compare_2nd['SECID']:
+				ListPairPropsSimilarsReq[i][0].set_entity_values(deck_infos, {'Comment': 'Diff_Thickness'})
+				ListPairPropsSimilarsReq[i][1].set_entity_values(deck_infos, {'Comment': 'Diff_Thickness'})
+			
+
+########## Find pairs props similar in model: lh, rh side
+def FindPairsPropsSimilarFunc(ListPairsPidsPenetration, ProbarStatus, LabelStatus):
+	
+	ListPidsChecked = []
+	ListPairPropsSimilarsReq = []
+	
+	guitk.BCProgressBarSetTotalSteps(ProbarStatus, len(ListPairsPidsPenetration))
+	for i in range(0, len(ListPairsPidsPenetration), 1):
+#		print('Loading Pairs Ids: ' + str(ListPairsPidsPenetration[i]) + '....' + str(i+1) + '/' + str(len(ListPairsPidsPenetration)))
+		guitk.BCLabelSetText(LabelStatus, 'Loading Props Ids: ' + str(ListPairsPidsPenetration[i]) + '....' + str(i+1) + '/' + str(len(ListPairsPidsPenetration)))
+		if ListPairsPidsPenetration[i] != 0:
+			IdsProps_1st = ListPairsPidsPenetration[i][0]
+			IdsProps_2nd = ListPairsPidsPenetration[i][1]
+			pos_ids_1st = FindEntityInListElementsFunc(IdsProps_1st, ListPidsChecked)
+			pos_ids_2nd = FindEntityInListElementsFunc(IdsProps_2nd, ListPidsChecked)
+			
+			if pos_ids_1st == None and pos_ids_2nd == None:
+				status_similar, ListPropsConnect = CompareMeshToMeshSameSideFunc(ListPairsPidsPenetration[i])
+#				print(status_similar)
+				if status_similar == True:
+					ListPidsChecked.extend(ListPairsPidsPenetration[i])
+					ListPairPropsSimilarsReq.append(ListPropsConnect)
+		guitk.BCProgressBarSetProgress(ProbarStatus, i+1)
+	
+	return ListPairPropsSimilarsReq
+
+########## Comapre mesh to mesh sameside in model	
+def CompareMeshToMeshSameSideFunc(ListIdsPropsCompare):
+	
+	ListPropsConnect = []
+	status_similar = False
+	
+	for i in range(0, len(ListIdsPropsCompare), 1):
+		ListPropsConnect.append(base.GetEntity(deck_infos, '__PROPERTIES__', ListIdsPropsCompare[i]))
+	
+	base.Or(ListPropsConnect)
+	collector_sets_elems_diff = base.CollectNewModelEntities(deck_infos, 'SET')
+	status_compare = base.RmdblFemFem(0.5, 2)
+	new_sets_elems_diff = collector_sets_elems_diff.report()
+	del collector_sets_elems_diff
+	
+	if status_compare != 0:
+		if len(new_sets_elems_diff) >0:
+			status_similar = False
+			ElemsOnSetDiff = base.CollectEntities(deck_infos, new_sets_elems_diff, ['__ELEMENTS__'])
+			list_props_similar = ComparePropsBaseOnAreaOfPartsFunc(ElemsOnSetDiff, ListPropsConnect)
+			if len(list_props_similar) == 2:
+				status_similar = True
+			
+			base.DeleteEntity(new_sets_elems_diff, True)
+		else:
+			status_similar = True
+	
+#	else:
+#		print(ListIdsPropsCompare)
+	
+	return status_similar, ListPropsConnect
+
+########## Compare props similar base on area of parts
+def ComparePropsBaseOnAreaOfPartsFunc(ElemsOnSetDiff, ListPropsConnect):
+	
+	list_props_similar = []
+	for i in range(0, len(ListPropsConnect), 1):
+		type_of_props = ListPropsConnect[i].get_entity_values(deck_infos, ['__type__'])
+		elems_on_props_connect = base.CollectEntities(deck_infos, ListPropsConnect[i], ['__ELEMENTS__'])
+		elems_on_set_diff_props = list(set(elems_on_props_connect).intersection(ElemsOnSetDiff))
+		if type_of_props['__type__'] == 'SECTION_SHELL':
+			area_of_props_connect = CalcAreaOnListElemsFunc(elems_on_props_connect)
+			area_of_elems_diff = CalcAreaOnListElemsFunc(elems_on_set_diff_props)
+			
+			AreaSimilarFactor = (area_of_elems_diff/area_of_props_connect)*100
+			if AreaSimilarFactor <= 50:
+				list_props_similar.append(ListPropsConnect[i])
+		
+		else:
+			number_elems_similar = (len(elems_on_set_diff_props)/len(elems_on_props_connect))*100
+			if number_elems_similar <= 50:
+				list_props_similar.append(ListPropsConnect[i])
+		
+	return list_props_similar
+		
+########## Find pairs pid intersection in model
+def FindPairsPropsIntersectionFunc(ListPropsLH_Side, ListPropsRH_Side):
+	
+	ListPairsPidsPenetration = []
+	base.Or(ListPropsLH_Side)
+	base.And(ListPropsRH_Side)
+	base.GeoSymmetry(input_function_type = "MOVE", 
+									pid_offset = 0, 
+									group_offset = "NEW PART", 
+									input_sets_type = "NONE", 
+									entities = ListPropsRH_Side,
+									)
+			
+	ListPairsPidsPenetration = base.ReportPenetratedPairsOfPIDs(check_type = 3, fix = False, user_thickness = 0.4)
+	
+	return ListPairsPidsPenetration
+			
+########## Find props LH, RH side
+def FindPropsLH_RHSideFunc(AllsProps, LabelStatus, ProbarStatus):
+	
+	ListPropsLH_Side = []
+	ListPropsRH_Side = []
+	ListPropsCommon_Side = []
+	
+	guitk.BCProgressBarSetTotalSteps(ProbarStatus, len(AllsProps))
+	for i in range(0, len(AllsProps), 1):
+#		print('Loading Props Ids: ' + str(AllsProps[i]._id) + '....' + str(i+1) + '/' + str(len(AllsProps)))
+		guitk.BCLabelSetText(LabelStatus, 'Loading Props Ids: ' + str(AllsProps[i]._id) + '....' + str(i+1) + '/' + str(len(AllsProps)))
+		ListNodesPositive = []
+		ListNodesNegative = []
+		
+		ElemsOnProps = base.CollectEntities(deck_infos, AllsProps[i], ['__ELEMENTS__'])
+		if len(ElemsOnProps) >0:
+			NodesOnProps = base.CollectEntities(deck_infos, ElemsOnProps, ['NODE'])
+			for k in range(0, len(NodesOnProps), 1):
+				if NodesOnProps[k].position[1] <0:
+					ListNodesNegative.append(NodesOnProps[k])
+				else:
+					ListNodesPositive.append(NodesOnProps[k])
+			
+		if len(ListNodesNegative) >0 and len(ListNodesPositive) >0:
+			ListPropsCommon_Side.append(AllsProps[i])
+			AllsProps[i].set_entity_values(deck_infos, {'Comment': 'Common Side'})
+		else:
+			if len(ListNodesPositive) >0:
+				ListPropsRH_Side.append(AllsProps[i])
+				AllsProps[i].set_entity_values(deck_infos, {'Comment': 'RH Side'})
+			if len(ListNodesNegative) >0:
+				ListPropsLH_Side.append(AllsProps[i])
+				AllsProps[i].set_entity_values(deck_infos, {'Comment': 'LH Side'})
+		
+		guitk.BCProgressBarSetProgress(ProbarStatus, i+1)
+		
+	return ListPropsLH_Side, ListPropsRH_Side, ListPropsCommon_Side
+
+
+##$$$$$$$$$$$$$$$$$$$ Help Functions
+def FindEntityInListElementsFunc(EntityElement, ListElements):
+	
+	try:
+		Pos = ListElements.index(EntityElement)
+	except:
+		Pos = None
+	else:
+		Pos = Pos
+	
+	return Pos
+
+def CalcAreaOnListElemsFunc(ListElemsImport):
+	
+	ListTotalArea = []
+	for i in range(0, len(ListElemsImport), 1):
+		ListTotalArea.append(base.CalcShellArea(ListElemsImport[i]))
+	
+	TotalAreaReq = sum(ListTotalArea)
+	
+	return TotalAreaReq
+	
+#CompareMaterialTool()
+D:\Kyty180389\Script\20.CompareMaterial
+
+
+
+
+
+
 # PYTHON script
 import os
 import ansa
 from ansa import *
 
 deck_infos = constants.NASTRAN
-RUN_DIR = '//10.128.10.55/ati$/13.INSTITUTES/01.ATI/05.CAE_Center/01.MOD/00.Common/100.Member/3576613_N.HIEP/Script_data'
-def DivideArcWeldFemSiteTool(RUN_DIR):
+def main():
 	# Need some documentation? Run this with F5
-	path_image_femsite = os.path.join(RUN_DIR, '97-Image')
-	TopWindow = guitk.BCWindowCreate("Setup Infos for Welding Props Tool ver02", guitk.constants.BCOnExitDestroy)
-	
-	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Type Of FEMSITE", guitk.constants.BCVertical)
-	BCButtonGroup_2 = guitk.BCButtonGroupCreate(BCButtonGroup_1, "Options With SHELL-SHELL", guitk.constants.BCHorizontal)
-	BCCheckBox_1 = guitk.BCCheckBoxCreate(BCButtonGroup_2, "Overlap-joints")
-	BCCheckBox_2 = guitk.BCCheckBoxCreate(BCButtonGroup_2, "Edge-joints")
-	BCCheckBox_3 = guitk.BCCheckBoxCreate(BCButtonGroup_2, "Y-joints")
-	
-	guitk.BCAddToolTipImage(BCCheckBox_1, os.path.join(path_image_femsite, 'Overlap_joints.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_2, os.path.join(path_image_femsite, 'Edge_joint.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_3, os.path.join(path_image_femsite, 'Y-joints.png'))
-	
-	BCButtonGroup_3 = guitk.BCButtonGroupCreate(BCButtonGroup_1, "Options With SHELL-SOLID", guitk.constants.BCHorizontal)
-	BCCheckBox_4 = guitk.BCCheckBoxCreate(BCButtonGroup_3, "Haz joints 1 Layer")
-	BCCheckBox_5 = guitk.BCCheckBoxCreate(BCButtonGroup_3, "Haz joints 2 Layer")
-	BCCheckBox_6 = guitk.BCCheckBoxCreate(BCButtonGroup_3, "Buttjoint_partial")
-	
-	guitk.BCAddToolTipImage(BCCheckBox_4, os.path.join(path_image_femsite, 'Haz_joints_one_layer.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_5, os.path.join(path_image_femsite, 'Haz_joints_two_layer.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_6, os.path.join(path_image_femsite, 'Buttjoint_partial.png'))
-	
-	BCButtonGroup_4 = guitk.BCButtonGroupCreate(BCButtonGroup_1, "Options With SOLID-SOLID", guitk.constants.BCHorizontal)
-	BCCheckBox_7 = guitk.BCCheckBoxCreate(BCButtonGroup_4, "Lap joints")
-	BCCheckBox_8 = guitk.BCCheckBoxCreate(BCButtonGroup_4, "T-joints")
-	BCCheckBox_9 = guitk.BCCheckBoxCreate(BCButtonGroup_4, "Buttjoint_full_pene")
-	
-	guitk.BCAddToolTipImage(BCCheckBox_7, os.path.join(path_image_femsite, 'Lap_joints.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_8, os.path.join(path_image_femsite, 'T_joints.png'))
-	guitk.BCAddToolTipImage(BCCheckBox_9, os.path.join(path_image_femsite, 'Buttjoint_full_pene.png'))
-	
-	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
-	BCLabel_1 = guitk.BCLabelCreate(TopWindow, " ")
-	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
-	
-	_window = [BCProgressBar_1, BCLabel_1, BCCheckBox_1, BCCheckBox_2, BCCheckBox_3, BCCheckBox_4, BCCheckBox_5, BCCheckBox_6, BCCheckBox_7, BCCheckBox_8, BCCheckBox_9]
-	
-	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
-	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
-	
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_1, CheckBox1Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_2, CheckBox2Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_3, CheckBox3Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_4, CheckBox4Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_5, CheckBox5Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_6, CheckBox6Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_7, CheckBox7Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_8, CheckBox8Func, _window)
-	guitk.BCCheckBoxSetToggledFunction(BCCheckBox_9, CheckBox9Func, _window)
-	
-	guitk.BCShow(TopWindow)
 
-def RejectFunc(TopWindow, _window):
-	return 1
-
-#***************** Khoi dong giao dien nguoi dung
-def AcceptFunc(TopWindow, _window):
-	
-	ProbarStatus = _window[0]
-	LabelStatus = _window[1]
-####### SHELL vs SHELL	
-	Overlap_joints_status = guitk.BCCheckBoxIsChecked(_window[2])
-	Edge_joints_status = guitk.BCCheckBoxIsChecked(_window[3])
-	Y_joints_status = guitk.BCCheckBoxIsChecked(_window[4])
-####### SHELL vs SOLID
-	Joints1LayerStatus = guitk.BCCheckBoxIsChecked(_window[5])
-	Joints2LayerStatus = guitk.BCCheckBoxIsChecked(_window[6])
-	ButtjointPartialStatus = guitk.BCCheckBoxIsChecked(_window[7])
-####### SOLID vs SOLID
-	LapJointsStatus = guitk.BCCheckBoxIsChecked(_window[8])
-	T_jointsStatus = guitk.BCCheckBoxIsChecked(_window[9])
-	Buttjoint_FullPene_Status = guitk.BCCheckBoxIsChecked(_window[10])
-	
-	for i in range(0, 50, 1):
-		guitk.BCLabelSetText(LabelStatus, 'Select Arcweld Elements.....')
+	for i in range(0, 100, 1):
 		base.SetPickMethod(base.constants.PID_REGION_SELECTION)
 		ElemsWeldSelect = base.PickEntities(deck_infos, ['SHELL'])
 		if ElemsWeldSelect != None:
-			if Overlap_joints_status == True:
-				OverlapJointsFunc(ElemsWeldSelect, LabelStatus)
-			if Edge_joints_status == True:
-				Edge_jointsFunc(ElemsWeldSelect, LabelStatus)
-			if Y_joints_status == True:
-				Y_jointsFunc(ElemsWeldSelect, LabelStatus)
-			if Joints1LayerStatus == True:
-				HazJoints1LayerFunc(ElemsWeldSelect, LabelStatus)
-			if Joints2LayerStatus == True:
-				HazJoints2LayerFunc(ElemsWeldSelect, LabelStatus)
-
-		else:
-			return 0
-
-#######*********************** Haz joints one layer status **********************######
-def HazJoints2LayerFunc(ElemsWeldSelect, LabelStatus):
-	
-	guitk.BCLabelSetText(LabelStatus, 'Select one props referens.....')
-	Joints2Layer_props = base.PickEntities(deck_infos, ['PSHELL'])
-	if Joints2Layer_props != None:
-		if len(Joints2Layer_props) == 1:
-			base.Or(ElemsWeldSelect)
-			base.Neighb('2')
-			Status_HazJoints2Layer = False
-			DividePropsOfWeld_ZoneFunc(ElemsWeldSelect, Joints2Layer_props[0])
-			DividePropsOfSolid_HAZ_ZoneFunc(ElemsWeldSelect, Status_HazJoints2Layer, Joints2Layer_props[0])
-		
-		else:
-			guitk.UserError('Select two props.....')
-			return 1
-
-#######*********************** Haz joints one layer status **********************######
-def HazJoints1LayerFunc(ElemsWeldSelect, LabelStatus):
-	
-	guitk.BCLabelSetText(LabelStatus, 'Select one props referens.....')
-	Joints1Layer_props = base.PickEntities(deck_infos, ['PSHELL'])
-	if Joints1Layer_props != None:
-		if len(Joints1Layer_props) == 1:
-			base.Or(ElemsWeldSelect)
-			base.Neighb('2')
-			Status_HazJoints1Layer = True
-			DividePropsOfWeld_ZoneFunc(ElemsWeldSelect, Joints1Layer_props[0])
-			DividePropsOfSolid_HAZ_ZoneFunc(ElemsWeldSelect, Status_HazJoints1Layer, Joints1Layer_props[0])
-		
-		else:
-			guitk.UserError('Select two props.....')
-			return 1
-	
-
-#######*********************** Y joints Status **********************######	
-def Y_jointsFunc(ElemsWeldSelect, LabelStatus):
-	
-	guitk.BCLabelSetText(LabelStatus, 'Select two props referens.....')
-	Yjoints_props = base.PickEntities(deck_infos, ['PSHELL'])
-	if Yjoints_props != None:
-		if len(Yjoints_props) == 2:
-			base.Or(ElemsWeldSelect)
-			base.Neighb('1')
-			
-			infos_thickness_all_props = []
-			for w in range(0, len(Yjoints_props), 1):
-				ValsThickness = Yjoints_props[w].get_entity_values(deck_infos, ['T'])
-				infos_thickness_all_props.append(ValsThickness['T'])
+			PropsOfSolids = base.PickEntities(deck_infos, ['PSOLID'])
+			if PropsOfSolids != None:
+				SetInfosPropsOfWeldSolidFunc(PropsOfSolids, ElemsWeldSelect)
 				
-			IndexMinThicknessProps = infos_thickness_all_props.index(min(infos_thickness_all_props))
-			infos_props_Yjoints = Yjoints_props[IndexMinThicknessProps]
-			
-			Status_Yjoints = True
-			DividePropsOfWeld_ZoneFunc(ElemsWeldSelect, infos_props_Yjoints)
-			DividePropsOfHAZ_ZoneFunc(ElemsWeldSelect, Status_Yjoints)
-			
 		else:
-			guitk.UserError('Select two props.....')
 			return 1
 
-#######*********************** Overlap joints Status **********************######	
-def OverlapJointsFunc(ElemsWeldSelect, LabelStatus):
+def SetInfosPropsOfWeldSolidFunc(PropsOfSolids, ElemsWeldSelect):
 	
-	guitk.BCLabelSetText(LabelStatus, 'Select only props referens.....')
-	Overlap_props = base.PickEntities(deck_infos, ['PSHELL'])
-	if Overlap_props != None:
-		if len(Overlap_props) == 1:
-			base.Or(ElemsWeldSelect)
-			base.Neighb('1')
-			
-			Status_Overlap_joints = False
-			DividePropsOfWeld_ZoneFunc(ElemsWeldSelect, Overlap_props[0])
-			DividePropsOfHAZ_ZoneFunc(ElemsWeldSelect, Status_Overlap_joints)
-	
+	base.Or(ElemsWeldSelect)
+	base.Neighb('1')
+	ListGroupElemAroundWeldSolid = FindElemsAroundArcWeldFunc(ElemsWeldSelect)
+	if len(ListGroupElemAroundWeldSolid) >0:
+		StatusTypes = None
+		if len(PropsOfSolids) == 1:
+			StatusTypes = 'SongSong'
 		else:
-			guitk.UserError('Select one props.....')
-			return 1
-
-#######*********************** Edge joints Status **********************######	
-def Edge_jointsFunc(ElemsWeldSelect, LabelStatus):
-	guitk.BCLabelSetText(LabelStatus, 'Select two props referens.....')
-	Edge_props = base.PickEntities(deck_infos, ['PSHELL'])
-	if Edge_props != None:
-		if len(Edge_props) == 2:
-			base.Or(ElemsWeldSelect)
-			base.Neighb('1')
-			
-			for i in range(0, len(Edge_props), 1):
-				infos_edge_props = Edge_props[i].get_entity_values(deck_infos, ['T'])
-				Elems_edge_joints_vis = base.CollectEntities(deck_infos, Edge_props[i], ['SHELL'], filter_visible = True)
-				Nodes_edge_joints = base.CollectEntities(deck_infos, Elems_edge_joints_vis, ['GRID'])
-				
-				infos_elems_edgeweld_common,  infos_elems_edgeweld_double= FindElemsCommonNodesFunc(Elems_edge_joints_vis, ElemsWeldSelect)
-				if len(infos_elems_edgeweld_common)>0:
-					infos_elems_edgeweld_single = infos_elems_edgeweld_common + infos_elems_edgeweld_double
-					string_end_weld_edge_joint = '09'
-					string_name_weld_edge_joint = 'ArcWeld'
-					string_status_props_edge_joints = 'PSHELL'
-					infos_thickness_props_edge_joints = infos_edge_props['T']
-#					print(infos_elems_edgeweld_single)
-					SetupInfosPropSolidsWeldFunc(infos_elems_edgeweld_single, Edge_props[i], string_end_weld_edge_joint, string_name_weld_edge_joint, string_status_props_edge_joints, infos_thickness_props_edge_joints)
+			StatusTypes = 'VuongGoc'
+		
+		StringEndIdsSolidsWeld = '09'
+		NameSolidsWeld = 'ArcWeld'
+		StatusWeldProps = 'PSHELL'
+		ThicknessWeld = 4
+		SetupInfosPropSolidsWeldFunc(ElemsWeldSelect, PropsOfSolids[0], StringEndIdsSolidsWeld, NameSolidsWeld, StatusWeldProps, ThicknessWeld)
+		
+		for i in range(0, len(ListGroupElemAroundWeldSolid), 1):
+			PidsElemsAroundSolidsWeldOrigin = ListGroupElemAroundWeldSolid[i][0].get_entity_values(deck_infos, ['PID'])
+			PropsElemsAroundSolidsWeldOrigin = PidsElemsAroundSolidsWeldOrigin['PID']
+			if StatusTypes == 'SongSong':
+				if PropsOfSolids[0] == PropsElemsAroundSolidsWeldOrigin:
+					ListShellsVolHeatZone1st = SetupInfosWithSolidWeldParallelFunc(ListGroupElemAroundWeldSolid[i], PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect)
+				else:
+					SetupInfosWithSolidWeldRectangularFunc(ListGroupElemAroundWeldSolid[i], PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect)
 					
-					infos_elems_edgeweld_common,  infos_elems_edgeweld_double= FindElemsCommonNodesFunc(infos_elems_edgeweld_single, Elems_edge_joints_vis)
-					if len(infos_elems_edgeweld_common)>0:
-						infos_elems_around_edgeweld = infos_elems_edgeweld_common + infos_elems_edgeweld_double
-						string_end_haz_edge_joint = '02'
-						string_name_haz_edge_joint = 'HAZ_ZONE'
-						SetupInfosPropSolidsWeldFunc(infos_elems_around_edgeweld, Edge_props[i], string_end_haz_edge_joint, string_name_haz_edge_joint, string_status_props_edge_joints, infos_thickness_props_edge_joints)
-			
-		else:
-			guitk.UserError('Select two props.....')
-			return 1
+			elif StatusTypes == 'VuongGoc':
+				SetupInfosWithSolidWeldRectangularFunc(ListGroupElemAroundWeldSolid[i], PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect)
+							
+def SetupInfosWithSolidWeldRectangularFunc(InfosSolidWeldRectangular, PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect):
+	
+	ListShellsVolHeatZone1st = SetupInfosWithSolidWeldParallelFunc(InfosSolidWeldRectangular, PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect)
+	if len(ListShellsVolHeatZone1st) >0:
+		base.Neighb('1')
+		ListGroupsSolidsHeatZone_2nd = FindElemsAroundArcWeldFunc(ListShellsVolHeatZone1st)
+		if len(ListGroupsSolidsHeatZone_2nd) >0:
+			for i in range(0, len(ListGroupsSolidsHeatZone_2nd), 1):
+				PidsHeatZone2ndOrigin = ListGroupsSolidsHeatZone_2nd[i][0].get_entity_values(deck_infos, ['PID'])
+				PropsHeatZones_2ndOrigin = PidsHeatZone2ndOrigin['PID']
+				StringEndHeatZone_2nd = '02'
+				NameHeatZone_2nd = 'HeatZone_2nd'
+				StatusProps = 'PSOLID'
+				ThiknessHeatZone2nd = None
+				SetupInfosPropSolidsWeldFunc(ListGroupsSolidsHeatZone_2nd[i], PropsHeatZones_2ndOrigin, StringEndHeatZone_2nd, NameHeatZone_2nd, StatusProps, ThiknessHeatZone2nd)				
 
-
-#######*********************** Divide props of elems weld  **********************######		
-def DividePropsOfWeld_ZoneFunc(ElemsWeldSelect, props_reference):
+#######*********************** Thiet dinh thong tin properties cho cac part song song **********************######
+def SetupInfosWithSolidWeldParallelFunc(InfosListElemsSolidWeld, PropsElemsAroundSolidsWeldOrigin, ElemsWeldSelect):
 	
-	infos_props_referen = props_reference.get_entity_values(deck_infos, ['T'])
-	string_end_weld_joint = '09'
-	string_name_weld_joint = 'ArcWeld'
-	string_status_weld_joints = 'PSHELL'
-	infos_thickness_props_joints = infos_props_referen['T']
-	SetupInfosPropSolidsWeldFunc(ElemsWeldSelect, props_reference, string_end_weld_joint, string_name_weld_joint, string_status_weld_joints, infos_thickness_props_joints)
-
-#######*********************** Divide haz zone with shells elems  **********************######		
-def DividePropsOfHAZ_ZoneFunc(ElemsWeldSelect, Status_add_weld):
-
-	props_haz_joints_vis = base.CollectEntities(deck_infos, None, ['PSHELL', 'PSOLID'], filter_visible = True)
-	if len(props_haz_joints_vis)>0:
-		props_around_haz_joints = RemovePropsArcOnListPropsVisVisFunc(props_haz_joints_vis, ElemsWeldSelect)
-		if len(props_around_haz_joints)>0:
-			for i in range(0, len(props_around_haz_joints), 1):
-				infos_haz_joints = props_around_haz_joints[i].get_entity_values(deck_infos, ['T', '__type__'])
-				if infos_haz_joints['__type__'] == 'PSHELL':
-					infos_thickness_haz_joins = infos_haz_joints['T']
-				else:
-					infos_thickness_haz_joins = 'N'
-						
-				elems_haz_joint_vis = base.CollectEntities(deck_infos, props_around_haz_joints[i], ['SHELL', 'SOLID'], filter_visible = True)
-				if len(elems_haz_joint_vis)>0:
-					infos_elems_haz_joints, infos_elems_double_weld = FindElemsCommonNodesFunc(ElemsWeldSelect, elems_haz_joint_vis)
-					if len(infos_elems_haz_joints)>0:
-						string_end_haz_joint = '02'
-						string_name_haz_joint = 'HAZ_ZONE'
-						string_status_haz_joints = infos_haz_joints['__type__']
-						SetupInfosPropSolidsWeldFunc(infos_elems_haz_joints, props_around_haz_joints[i], string_end_haz_joint, string_name_haz_joint, string_status_haz_joints, infos_thickness_haz_joins)
-					if Status_add_weld == True and len(infos_elems_double_weld) >0:
-						DividePropsOfWeld_ZoneFunc(infos_elems_double_weld, props_around_haz_joints[i])
-
-#######*********************** Divide haz zone with solid elems  **********************######	
-def DividePropsOfSolid_HAZ_ZoneFunc(ElemsWeldSelect, StatusZoneLayer, props_solid_weld_referen):
+	StringEndHeatZone_1st = '01'
+	NameHeatZone_1st = 'HeatZone_1st'
+	StatusProps = 'PSOLID'
+	ThicknessHeatZone_1st = None
+	SetupInfosPropSolidsWeldFunc(InfosListElemsSolidWeld, PropsElemsAroundSolidsWeldOrigin, StringEndHeatZone_1st, NameHeatZone_1st, StatusProps, ThicknessHeatZone_1st)
+	ListElemsHeatZone_1st, ListShellsVolHeatZone1st = CreateVolShellOfHeatZone1stFunc(InfosListElemsSolidWeld, ElemsWeldSelect)
+	if len(ListElemsHeatZone_1st) >0:
+		StringEndVolShellsHeatZone_1st = '07'
+		NameVolShellsHeatZone_1st = 'VolShells_HeatZone_1st'
+		StatusProps = 'PSHELL'
+		ThicknessVolShellHEatZone_1st = 2
+		SetupInfosPropSolidsWeldFunc(ListElemsHeatZone_1st, PropsElemsAroundSolidsWeldOrigin, StringEndVolShellsHeatZone_1st, NameVolShellsHeatZone_1st, StatusProps, ThicknessVolShellHEatZone_1st)	
 	
-	infos_props_vis = base.CollectEntities(deck_infos, None, ['PSHELL', 'PSOLID'], filter_visible = True)
-	if len(infos_props_vis) >0:
-		infos_props_divide_vis = RemovePropsArcOnListPropsVisVisFunc(infos_props_vis, ElemsWeldSelect)
-		if len(infos_props_divide_vis)>0:
-			for i in range(0, len(infos_props_divide_vis), 1):
-				infos_props_divide = infos_props_divide_vis[i].get_entity_values(deck_infos, ['T', '__type__'])
-				if infos_props_divide['__type__'] == 'PSHELL':
-					infos_shells_vis = base.CollectEntities(deck_infos, infos_props_divide_vis[i], ['SHELL'], filter_visible = True)
-					if len(infos_shells_vis)>0:
-						infos_shells_haz_zone, infos_shell_double_weld = FindElemsCommonNodesFunc(ElemsWeldSelect, infos_shells_vis)
-						if len(infos_shells_haz_zone)>0:
-							string_end_haz_shell = '02'
-							string_name_haz_shell = 'HAZ_ZONE'
-							string_status_haz_shell = infos_props_divide['__type__']
-							SetupInfosPropSolidsWeldFunc(infos_shells_haz_zone, infos_props_divide_vis[i], string_end_haz_shell, string_name_haz_shell, string_status_haz_shell, infos_props_divide['T'])
-				else:
-					infos_solids_vis = base.CollectEntities(deck_infos, infos_props_divide_vis[i], ['SOLID'], filter_visible = True)
-					if len(infos_solids_vis)>0:
-						infos_type_solid = infos_solids_vis[0].get_entity_values(deck_infos, ['type'])
-						infos_elems_one_nodes, infos_elems_two_nodes, infos_elem_solid_other = FindSolidsCommonNodesWeldFunc(ElemsWeldSelect, infos_solids_vis)
-						infos_solids_haz_zone_1st = infos_elems_one_nodes + infos_elems_two_nodes
-						if len(infos_solids_haz_zone_1st)>0:
-							string_end_haz_solid_1st = '01'
-							string_name_haz_solid_1st = 'HAZ_ZONE_1st'
-							string_status_haz_solid_1st = 'PSOLID'
-							infos_thickness_haz_zone_1st = 'N'
-							SetupInfosPropSolidsWeldFunc(infos_solids_haz_zone_1st, infos_props_divide_vis[i], string_end_haz_solid_1st, string_name_haz_solid_1st, string_status_haz_solid_1st, infos_thickness_haz_zone_1st)
-							SetInfosNullShellOfSolidsFunc(infos_props_divide_vis[i], infos_solids_haz_zone_1st, ElemsWeldSelect, StatusZoneLayer, props_solid_weld_referen, infos_solids_vis)
-
-#######*********************** Create Vol shell skin around solid  **********************######	
-def SetInfosNullShellOfSolidsFunc(infos_props_haz_zone_referen, infos_haz_zone_solids, ElemsWeldSelect, StatusZoneLayer, props_solid_weld_referen, infos_solids_vis):
-	
-	infos_VolShells_skin = base.CreateShellsFromSolidFacets(option = "skin", ret_ents = True, solids = infos_solids_vis)
-	if len(infos_VolShells_skin)>0:
-		infos_nullshells_one_nodes, infos_nullshells_twonodes, infos_nullshells_other = FindSolidsCommonNodesWeldFunc(ElemsWeldSelect, infos_VolShells_skin)
-		if len(infos_nullshells_other)>0:
-			base.DeleteEntity(infos_nullshells_other, True)
-			
-		infos_nullshells_skin = infos_nullshells_one_nodes + infos_nullshells_twonodes
-		CreatePropsOfNullShellsFunc(infos_nullshells_skin, infos_props_haz_zone_referen, props_solid_weld_referen)
-		if StatusZoneLayer == False:
-			if len(infos_nullshells_twonodes)>0:
-				infos_solids_remove_zone_1st = list(set(infos_solids_vis).difference(infos_haz_zone_solids))
-				infos_solids_zone_2nd_common, infos_solids_zone_2nd_one_nodes, infos_other_solid_zone = FindSolidsCommonNodesWeldFunc(infos_nullshells_twonodes, infos_solids_remove_zone_1st)
-				infos_solid_zone_2nd_referen = infos_solids_zone_2nd_common + infos_solids_zone_2nd_one_nodes
-				if len(infos_solid_zone_2nd_referen)>0:
-					string_end_haz_solid_2nd = '02'
-					string_name_haz_solid_2nd = 'HAZ_ZONE_1st'
-					string_status_haz_2nd = 'PSOLID'
-					infos_thickness_haz_zone_2nd = 'N'
-					SetupInfosPropSolidsWeldFunc(infos_solid_zone_2nd_referen, infos_props_haz_zone_referen, string_end_haz_solid_2nd, string_end_haz_solid_2nd, string_status_haz_2nd, infos_thickness_haz_zone_2nd)
-
-#######*********************** Find solid elems common nodes  **********************######	
-def FindSolidsCommonNodesWeldFunc(infos_solids_source, infos_solids_target):
-	
-	infos_solids_common = []
-	infos_solids_onenodes =[]
-	infos_solids_other = []
-	
-	nodes_solids_source = base.CollectEntities(deck_infos, infos_solids_source, ['GRID'])
-	for i in range(0, len(infos_solids_target), 1):
-		nodes_solids_target = base.CollectEntities(deck_infos, infos_solids_target[i], ['GRID'])
-		infos_nodes_solids_common = list(set(nodes_solids_source).intersection(nodes_solids_target))
-		if len(infos_nodes_solids_common)>0:
-			if len(infos_nodes_solids_common) == 1:
-				infos_solids_onenodes.append(infos_solids_target[i])
-			else:
-				infos_solids_common.append(infos_solids_target[i])
-		else:
-			infos_solids_other.append(infos_solids_target[i])
-		
-	return infos_solids_onenodes, infos_solids_common, infos_solids_other
-										
-#######*********************** Find element common nodes  **********************######	
-def FindElemsCommonNodesFunc(infos_elems_source, infos_elems_target):
-	
-	infos_elems_common = []
-	infos_elems_double_weld = []
-	nodes_elems_source = base.CollectEntities(deck_infos, infos_elems_source, ['GRID'])
-	for k in range(0, len(infos_elems_target), 1):
-		nodes_elems_target = base.CollectEntities(deck_infos, infos_elems_target[k], ['GRID'])
-		infos_nodes_common = list(set(nodes_elems_source).intersection(nodes_elems_target))
-		if len(infos_nodes_common)>0:
-			infos_elems_common.append(infos_elems_target[k])
-			if len(infos_nodes_common) == len(nodes_elems_target):
-				infos_elems_double_weld.append(infos_elems_target[k])
-				
-	return infos_elems_common, infos_elems_double_weld
-
-
-#######*********************** Thiet dinh thong tin properties cho null shell skin **********************######
-def CreatePropsOfNullShellsFunc(infos_nullshells_skin, infos_props_haz_zone_referen, props_solid_weld_referen):
-	
-	infos_props_zone_referen = infos_props_haz_zone_referen.get_entity_values(deck_infos, ['MID'])
-	infos_mat_origin_of_props_zone = infos_props_zone_referen['MID']
-	infos_new_IdMat_nullshells = int(str(infos_mat_origin_of_props_zone._id)[0:6]+'09')
-	infos_mat_nullshell_referen = base.GetEntity(deck_infos, '__MATERIALS__', int(infos_new_IdMat_nullshells))
-	if infos_mat_nullshell_referen == None:
-		infos_new_mat_nullshells = base.CopyEntity(None, infos_mat_origin_of_props_zone)
-		infos_new_mat_nullshells.set_entity_values(deck_infos, {'MID': infos_new_IdMat_nullshells})
-	
-	vals_props_weld_solid = props_solid_weld_referen.get_entity_values(deck_infos, ['T'])
-	
-	infos_props_nullshells_referen = None
-	for i in range(0, 9, 1):
-		id_of_props_nullshells = infos_props_haz_zone_referen._id + (i*10 + 7)
-		props_nullshells_07 = base.GetEntity(deck_infos, 'PSHELL', id_of_props_nullshells)
-#		print(props_nullshells_07)
-		if props_nullshells_07 != None:
-			vals_props_nullshells_07 = props_nullshells_07.get_entity_values(deck_infos, ['T'])
-#			print(vals_props_nullshells_07 ['T'])
-#			print(vals_props_weld_solid['T']/2)
-			if vals_props_nullshells_07 ['T'] == vals_props_weld_solid['T']/2:
-				infos_props_nullshells_referen = props_nullshells_07
-				break
-			else:
-				continue
-		else:
-			infos_props_nullshells_referen = base.CreateEntity(deck_infos, 'PSHELL', {'PID': id_of_props_nullshells, 'Name': 'Null_of_HAZ_Zone_1st_' + str(vals_props_weld_solid['T']/2) + 'mm', 'T': vals_props_weld_solid['T']/2, 'MID1': infos_new_IdMat_nullshells, 'MID2': infos_new_IdMat_nullshells, 'MID3': infos_new_IdMat_nullshells})
-			break
-	
-	if infos_props_nullshells_referen != None:
-		for k in range(0, len(infos_nullshells_skin), 1):
-			infos_nullshells_skin[k].set_entity_values(deck_infos, {'PID': infos_props_nullshells_referen._id})
-	
+	return ListShellsVolHeatZone1st
+					
 #######*********************** Thiet dinh thong tin properties cho cac part **********************######
-def SetupInfosPropSolidsWeldFunc(InfosElemsDivideProps, PropsInfosOrigin, EntityStringEndHeatZone, EntityNameHeatZone, StatusProps, InfosThickness):
+def CreateVolShellOfHeatZone1stFunc(InfosElemsSolidHeatZone1st, ElemsWeldSelect):
 	
-	type_props_origin = PropsInfosOrigin.get_entity_values(deck_infos, ['__type__', 'MID', 'MID1'])
-	if type_props_origin['__type__'] == 'PSHELL':
-		InfosMatsOrigin = type_props_origin['MID1']
-	else:
-		InfosMatsOrigin = type_props_origin['MID']
+	ListElemsVolShellReq = []
+	ListShellsVolHeatZone1st = []
 	
-	MatIdsOnNewProps = int(str(InfosMatsOrigin._id)[0:6]+EntityStringEndHeatZone)
-	MatsEntityReferenIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewProps))
-	if MatsEntityReferenIds == None:
-		NewMatsOnPropsReferen = base.CopyEntity(None, InfosMatsOrigin)
-		NewMatsOnPropsReferen.set_entity_values(deck_infos, {'MID': MatIdsOnNewProps})
+	VolsShellsAroundSolids = mesh.CreateShellsOnSolidsPidSkin(solids = InfosElemsSolidHeatZone1st, ret_ents = True)
+	if len(VolsShellsAroundSolids) >0:
+		GridsOnWeldSolids = base.CollectEntities(deck_infos, ElemsWeldSelect, ['GRID'])
+		for i in range(0, len(VolsShellsAroundSolids), 1):
+			GridsOnElemsVolShells = base.CollectEntities(deck_infos, VolsShellsAroundSolids[i], ['GRID'])
+			ListGridsVolShellsCommonWithArc = list(set(GridsOnWeldSolids).intersection(GridsOnElemsVolShells))
+			if len(ListGridsVolShellsCommonWithArc) >0:
+				ListElemsVolShellReq.append(VolsShellsAroundSolids[i])
+				if len(ListGridsVolShellsCommonWithArc) >1:
+					ListShellsVolHeatZone1st.append(VolsShellsAroundSolids[i])
+			else:
+				base.DeleteEntity(VolsShellsAroundSolids[i], True)
+				
+	return ListElemsVolShellReq, ListShellsVolHeatZone1st
+
+#######*********************** Thiet dinh thong tin properties cho cac part **********************######
+def SetupInfosPropSolidsWeldFunc(ListElemsSolidsWeld, PropsSolidWeldOrigin, EntityStringEndHeatZone, EntityNameHeatZone, StatusProps, InfosThickness):
 	
-	NewIdsOnSolidsProps = int(str(PropsInfosOrigin._id)[0:5]+EntityStringEndHeatZone)
+	ValsPropsSolidOrigin = PropsSolidWeldOrigin.get_entity_values(deck_infos, ['MID'])
+	InfosMatsSolidsOrigin = ValsPropsSolidOrigin['MID']
+	NameOfMatSolidsOrigin = InfosMatsSolidsOrigin._name
+	MatIdsOnNewSolidsProps = int(str(InfosMatsSolidsOrigin._id)[0:6]+EntityStringEndHeatZone)
+	MatsSolidsReferenIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewSolidsProps))
+	if MatsSolidsReferenIds == None:
+		NewMatsSolidsOnPropsReferen = base.CopyEntity(None, InfosMatsSolidsOrigin)
+		NewMatsSolidsOnPropsReferen.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidsProps, 'Name': NameOfMatSolidsOrigin + '_' + EntityNameHeatZone})		
+	
+	NewIdsOnSolidsProps = int(str(PropsSolidWeldOrigin._id)[0:5]+EntityStringEndHeatZone)
+	
 	if StatusProps == 'PSOLID':
 		PropsSolidsReferenIds = base.GetEntity(deck_infos, 'PSOLID', int(NewIdsOnSolidsProps))
-		PropsSolidsReferenIds = base.GetEntity(deck_infos, 'PSOLID', int(NewIdsOnSolidsProps))
 		if PropsSolidsReferenIds != None:
-			PropsSolidsReferenIds.set_entity_values(deck_infos, {'MID': MatIdsOnNewProps})
+			PropsSolidsReferenIds.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidsProps})
 		else:
-			NewPropsSolidsElems = base.CopyEntity(None, PropsInfosOrigin)
-			NewPropsSolidsElems.set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps, 'Name': EntityNameHeatZone + '_' + InfosThickness, 'MID': MatIdsOnNewProps})
+			NewPropsSolidsElems = base.CopyEntity(None, PropsSolidWeldOrigin)
+			NewPropsSolidsElems.set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps, 'Name': EntityNameHeatZone, 'MID': MatIdsOnNewSolidsProps})
 	
 	elif StatusProps == 'PSHELL':
 		PropsShellsReferenIds = base.GetEntity(deck_infos, 'PSHELL', int(NewIdsOnSolidsProps))
 		if PropsShellsReferenIds != None:
-			PropsShellsReferenIds.set_entity_values(deck_infos, {'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			PropsShellsReferenIds.set_entity_values(deck_infos, {'MID1': MatIdsOnNewSolidsProps, 'MID2': MatIdsOnNewSolidsProps, 'MID3': MatIdsOnNewSolidsProps})
 		else:
-			NewPropsShellsElems = base.CreateEntity(deck_infos, 'PSHELL', {'PID': NewIdsOnSolidsProps, 'Name': EntityNameHeatZone + '_' + str(InfosThickness) + 'mm', 'T': InfosThickness, 'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			NewPropsShellsElems = base.CreateEntity(deck_infos, 'PSHELL', {'PID': NewIdsOnSolidsProps, 'Name': EntityNameHeatZone, 'T': InfosThickness, 'MID1': MatIdsOnNewSolidsProps, 'MID2': MatIdsOnNewSolidsProps, 'MID3': MatIdsOnNewSolidsProps})
 		
-	for i in range(0, len(InfosElemsDivideProps), 1):
-		InfosElemsDivideProps[i].set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps})
+	for i in range(0, len(ListElemsSolidsWeld), 1):
+		ListElemsSolidsWeld[i].set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps})
+
+##########################################################
+def FindElemsAroundArcWeldFunc(ListElemsArcWeld):
+	
+	ListGroupsShellsAroundArcWeld = []
+	
+	AllsPropsVisible = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'], filter_visible = True)
+	if len(AllsPropsVisible) >0:
+		ListPropsVisAroundArc = RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld)
+		if len(ListPropsVisAroundArc) >0:
+			NodesOnElemsArc = base.CollectEntities(deck_infos, ListElemsArcWeld, ['GRID'])
+			for k in range(0, len(ListPropsVisAroundArc), 1):
+				ListElemsCommonOnSingleProps = []
+				ElemsOnPropsVis = base.CollectEntities(deck_infos, ListPropsVisAroundArc[k], ['__ELEMENTS__'], filter_visible = True)
+				for i in range(0, len(ElemsOnPropsVis), 1):
+					GridsOfElemsVis = base.CollectEntities(deck_infos, ElemsOnPropsVis[i], ['GRID'])
+					ListGridsCommonWithArc = list(set(GridsOfElemsVis).intersection(NodesOnElemsArc))
+					if len(ListGridsCommonWithArc) >0:
+						ListElemsCommonOnSingleProps.append(ElemsOnPropsVis[i])
+			
+				if len(ListElemsCommonOnSingleProps) >0:			
+					ListGroupsShellsAroundArcWeld.append(ListElemsCommonOnSingleProps)
+#					aaa = base.CreateEntity(constants.NASTRAN, "SET")
+#					base.AddToSet(aaa, ListElemsCommonOnSingleProps)
+	return ListGroupsShellsAroundArcWeld
 
 #######*********************** Loai bo cac PID khong co duoi la 00 **********************######
 def RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld):
 	
 	ListPropsVisAroundArc = []
 	for i in range(0, len(AllsPropsVisible), 1):
-		if len(str(AllsPropsVisible[i]._id)) == 7:
-			vals_props_vis = AllsPropsVisible[i].get_entity_values(deck_infos, ['__type__'])
-			if vals_props_vis['__type__'] == 'PSHELL':
-				if str(AllsPropsVisible[i]._id).endswith('00') or str(AllsPropsVisible[i]._id).endswith('02'):
-					ElemsOnPropVis = base.CollectEntities(deck_infos, AllsPropsVisible[i], ['SHELL', 'SOLID'], filter_visible = True)
-					ListCommonShellArc = list(set(ListElemsArcWeld).intersection(ElemsOnPropVis))
-					if len(ListCommonShellArc) == 0:
-						ListPropsVisAroundArc.append(AllsPropsVisible[i])
-			else:
+		if len(str(AllsPropsVisible[i]._id)) == 7 and str(AllsPropsVisible[i]._id).endswith('00'):
+			ElemsOnPropVis = base.CollectEntities(deck_infos, AllsPropsVisible[i], ['SHELL', 'SOLID'], filter_visible = True)
+			ListCommonShellArc = list(set(ListElemsArcWeld).intersection(ElemsOnPropVis))
+			if len(ListCommonShellArc) == 0:
 				ListPropsVisAroundArc.append(AllsPropsVisible[i])
 			
 	return ListPropsVisAroundArc
 
-#######*********************** Set infos window button **********************######
-def CheckBox1Func(CheckBox_1, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_1):
-		guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False); guitk.BCCheckBoxSetChecked(_window[5], False)
-		guitk.BCCheckBoxSetChecked(_window[6], False); guitk.BCCheckBoxSetChecked(_window[7], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)
+if __name__ == '__main__':
+	main()
+DividePropsOfArcWeld_Solid_Tool_0623
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+
+deck_infos = constants.NASTRAN
+def main():
+	# Need some documentation? Run this with F5
+
+	for i in range(0, 100, 1):
+		base.SetPickMethod(base.constants.PID_REGION_SELECTION)
+		ElemsWeldSelect = base.PickEntities(deck_infos, ['SHELL'])
+		if ElemsWeldSelect != None:
+			PropsOfShells = base.PickEntities(deck_infos, ['__PROPERTIES__'], 'PROPERTY')
+			if PropsOfShells != None:
+				SetInfosPropsOfWeldSolidShellsFunc(PropsOfShells, ElemsWeldSelect)
+				
+		else:
+			return 1
+
+def SetInfosPropsOfWeldSolidShellsFunc(PropsOfShells, ElemsWeldSelect):
 	
-def CheckBox2Func(CheckBox_2, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_2):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[4], False); guitk.BCCheckBoxSetChecked(_window[5], False)
-		guitk.BCCheckBoxSetChecked(_window[6], False); guitk.BCCheckBoxSetChecked(_window[7], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)
-
-def CheckBox3Func(CheckBox_3, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_3):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[5], False)
-		guitk.BCCheckBoxSetChecked(_window[6], False); guitk.BCCheckBoxSetChecked(_window[7], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)	
-
-def CheckBox4Func(CheckBox_4, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_4):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[6], False); guitk.BCCheckBoxSetChecked(_window[7], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)
-
-def CheckBox5Func(CheckBox_5, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_5):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[5], False); guitk.BCCheckBoxSetChecked(_window[7], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)	
-
-def CheckBox6Func(CheckBox_6, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_6):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[5], False); guitk.BCCheckBoxSetChecked(_window[6], False)	; guitk.BCCheckBoxSetChecked(_window[8], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)
-
-def CheckBox7Func(CheckBox_7, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_7):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[5], False); guitk.BCCheckBoxSetChecked(_window[6], False)	; guitk.BCCheckBoxSetChecked(_window[7], False)
-		guitk.BCCheckBoxSetChecked(_window[9], False); guitk.BCCheckBoxSetChecked(_window[10], False)
-
-def CheckBox8Func(CheckBox_8, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_8):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[5], False); guitk.BCCheckBoxSetChecked(_window[6], False)	; guitk.BCCheckBoxSetChecked(_window[7], False)
-		guitk.BCCheckBoxSetChecked(_window[8], False); guitk.BCCheckBoxSetChecked(_window[10], False)
-
-def CheckBox9Func(CheckBox_9, state, _window):
-	if guitk.BCCheckBoxIsChecked(CheckBox_9):
-		guitk.BCCheckBoxSetChecked(_window[2], False); guitk.BCCheckBoxSetChecked(_window[3], False); guitk.BCCheckBoxSetChecked(_window[4], False)
-		guitk.BCCheckBoxSetChecked(_window[5], False); guitk.BCCheckBoxSetChecked(_window[6], False)	; guitk.BCCheckBoxSetChecked(_window[7], False)
-		guitk.BCCheckBoxSetChecked(_window[8], False); guitk.BCCheckBoxSetChecked(_window[9], False)
+	base.Or(ElemsWeldSelect)
+	base.Neighb('1')
 	
-DivideArcWeldFemSiteTool(RUN_DIR)
+	if len(PropsOfShells) ==1:
+		status_active = 'SHELL_Active'
+	else:
+		status_active = 'SOLID_Active'
+	
+	props_vis = base.CollectEntities(deck_infos, None, ['__PROPERTIES__'], filter_visible = True)
+	if len(props_vis)>0:
+		FindPropsAroundArcWeldShellsFunc(props_vis, status_active, ElemsWeldSelect)
+
+def FindPropsAroundArcWeldShellsFunc(props_vis, status_active, ElemsWeldSelect):
+	
+	ListPropsVisAroundArc = RemovePropsArcOnListPropsVisVisFunc(props_vis, ElemsWeldSelect)
+	NodesOnArcWeldSelect = base.CollectEntities(deck_infos, ElemsWeldSelect, ['GRID'])
+	
+	for i in range(0, len(ListPropsVisAroundArc), 1):
+		infos_props = ListPropsVisAroundArc[i].get_entity_values(deck_infos, ['__type__'])
+		type_of_props = infos_props['__type__']
+		ElemsOnPropsVis = base.CollectEntities(deck_infos, ListPropsVisAroundArc[i], ['__ELEMENTS__'], filter_visible = True)
+		if type_of_props == 'PSHELL':
+			ListElemsCommonOnSingleProps = FindElemsShellsAroundArcWeldFunc(ElemsOnPropsVis, NodesOnArcWeldSelect)
+			if len(ListElemsCommonOnSingleProps) >0:
+				StringEndIdsHeatZoneShells = '02'
+				NameElemsHeatZoneShells = 'HeatZone'
+				StatusHeatZoneColor = False
+				SetupInfosPropArcWeldFunc(ListElemsCommonOnSingleProps, ListPropsVisAroundArc[i], StringEndIdsHeatZoneShells, NameElemsHeatZoneShells, StatusHeatZoneColor)
+				
+		if type_of_props == 'PSOLID':
+			if status_active == 'SHELL_Active':
+				
+			
+
+def FindElemsShellsAroundArcWeldFunc(ElemsOnPropsVis, NodesOnArcWeldSelect):
+	
+	ListElemsCommonOnSingleProps = []
+	for i in range(0, len(ElemsOnPropsVis), 1):
+		GridsOfElemsVis = base.CollectEntities(deck_infos, ElemsOnPropsVis[i], ['GRID'])
+		ListGridsCommonWithArc = list(set(GridsOfElemsVis).intersection(NodesOnArcWeldSelect))
+		if len(ListGridsCommonWithArc) >0:
+			ListElemsCommonOnSingleProps.append(ElemsOnPropsVis[i])
+	
+	return ListElemsCommonOnSingleProps	
+
+#######*********************** Loai bo cac PID khong co duoi la 00 **********************######
+def RemovePropsArcOnListPropsVisVisFunc(props_vis, ElemsWeldSelect):
+	
+	ListPropsVisAroundArc = []
+	for i in range(0, len(props_vis), 1):
+		if len(str(props_vis[i]._id)) == 7 and str(props_vis[i]._id).endswith('00'):
+			ElemsOnPropVis = base.CollectEntities(deck_infos, props_vis[i], ['SHELL'], filter_visible = True)
+			ListCommonShellArc = list(set(ElemsWeldSelect).intersection(ElemsOnPropVis))
+			if len(ListCommonShellArc) == 0:
+				ListPropsVisAroundArc.append(props_vis[i])
+			
+	return ListPropsVisAroundArc
+
+#######*********************** Thiet dinh thong tin properties cho cac part **********************######
+def SetupInfosPropArcWeldFunc(ListInfosElemsWeld, InfosPropsOrigin, StringEndIdsWeld, NamePropsElems, StatusColor):
+	
+	type_props_origin = InfosPropsOrigin.get_entity_values(deck_infos, ['__type__'])
+	if type_props_origin['__type__'] == 'PSHELL': 
+		ValsColor = InfosPropsOrigin.get_entity_values(deck_infos, ['COLOR_R', 'COLOR_G', 'COLOR_B', 'MID1'])
+		
+		InfosMatsOrigin = ValsColor['MID1']
+		NameOfMatOrigin = InfosMatsOrigin._name
+		MatIdsOnNewProps = int(str(InfosMatsOrigin._id)[0:6]+StringEndIdsWeld)
+		MatsReferenIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewProps))
+		if MatsReferenIds == None:
+			NewMatsOnPropsReferen = base.CopyEntity(None, InfosMatsOrigin)
+			NewMatsOnPropsReferen.set_entity_values(deck_infos, {'MID': MatIdsOnNewProps, 'Name': NameOfMatOrigin + '_' + NamePropsElems})
+	
+		NewIdsOnProps = int(str(InfosPropsOrigin._id)[0:5]+StringEndIdsWeld)
+		PropsReferenIds = base.GetEntity(deck_infos, 'PSHELL', int(NewIdsOnProps))
+		if PropsReferenIds == None:
+			NewPropsElems = base.CopyEntity(None, InfosPropsOrigin)
+			NewPropsElems.set_entity_values(deck_infos, {'PID': NewIdsOnProps, 'Name': NamePropsElems, 'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			if StatusColor == True:
+				NewPropsElems.set_entity_values(deck_infos, {'COLOR_R': ValsColor['COLOR_R'], 'COLOR_G': ValsColor['COLOR_G'], 'COLOR_B': ValsColor['COLOR_B']})
+		else:
+			PropsReferenIds.set_entity_values(deck_infos, {'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			if StatusColor == True:
+				PropsReferenIds.set_entity_values(deck_infos, {'COLOR_R': ValsColor['COLOR_R'], 'COLOR_G': ValsColor['COLOR_G'], 'COLOR_B': ValsColor['COLOR_B']})
+	
+		for i in range(0, len(ListInfosElemsWeld), 1):
+			ListInfosElemsWeld[i].set_entity_values(deck_infos, {'PID': NewIdsOnProps})
+	
+	else:
+		vals_props_origin = InfosPropsOrigin.get_entity_values(deck_infos, ['MID'])
+		infos_mat_solid_origin = vals_props_origin['MID']
+		NameOfMatSolidOrigin = infos_mat_solid_origin._name
+		MatIdsOnNewSolidProps = int(str(infos_mat_solid_origin._id)[0:6]+StringEndIdsWeld)
+		MatsReferenSolidIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewSolidProps))
+		if MatsReferenSolidIds == None:
+			NewMatsOnPropsSolids = base.CopyEntity(None, infos_mat_solid_origin)
+			NewMatsOnPropsSolids.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidProps, 'Name': NameOfMatSolidOrigin + '_' + NamePropsElems})
+		
+		NewIdsOnSolidsProps = int(str(InfosPropsOrigin._id)[0:5]+StringEndIdsWeld)
+		PropsSolidsReferenIds = base.GetEntity(deck_infos, 'PSOLID', int(NewIdsOnSolidsProps))
+		if PropsSolidsReferenIds == None:
+			NewPropsSolids = base.CopyEntity(None, InfosPropsOrigin)
+			NewPropsSolids.set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps, 'Name': NamePropsElems, 'MID': MatIdsOnNewSolidProps})
+		else:
+			PropsSolidsReferenIds.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidProps})
+		
+		for i in range(0, len(ListInfosElemsWeld), 1):
+			ListInfosElemsWeld[i].set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps})
+
+if __name__ == '__main__':
+	main()
+DividePropsOfArcWeld_Solid-Shell_Tool_0930
+
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+import math
+
+deck_infos = constants.NASTRAN
+#@session.defbutton('2-MESH', 'DividePropsOfArcWeldTool','Chia vùng zone Arc theo tiêu chuẩn SSD')
+def DividePropsOfArcWeldTool():
+	
+	TopWindow = guitk.BCWindowCreate("Setup Infos for Welding Props Tool ver01", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Options: ", guitk.constants.BCHorizontal)
+	BCRadioButton_1 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Auto", None, 0)
+	BCRadioButton_2 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Manual", None, 0)
+	guitk.BCRadioButtonSetChecked(BCRadioButton_2, True)
+	
+	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
+	BCLabel_1 = guitk.BCLabelCreate(TopWindow, " ")
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	
+	_window = [BCProgressBar_1, BCLabel_1, BCRadioButton_1, BCRadioButton_2]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
+	
+	guitk.BCShow(TopWindow)
+
+def RejectFunc(TopWindow, _window):
+	return 1
+	
+#***************** Khoi dong giao dien nguoi dung
+def AcceptFunc(TopWindow, _window):
+	
+	ProbarStatus = _window[0]
+	LabelStatus = _window[1]
+	AutoStatus = guitk.BCRadioButtonIsChecked(_window[2])
+	ManualStatus = guitk.BCRadioButtonIsChecked(_window[3])
+	if AutoStatus == True:
+		AuttoDividePropsOfArcWeldFunc(ProbarStatus, LabelStatus)
+	if ManualStatus == True:
+		DividePropsOfArcWeldByManualFunc(ProbarStatus, LabelStatus)
+
+#######****************** Chia pid cua arc shell va base sheet bang tay *****************#######
+def DividePropsOfArcWeldByManualFunc(ProbarStatus, LabelStatus):
+	
+	for i in range(0, 100, 1):
+		base.SetPickMethod(base.constants.PID_REGION_SELECTION)
+		ElemsWeldSelect = base.PickEntities(deck_infos, ['SHELL'])
+		if ElemsWeldSelect != None:
+			PropsOfArcWeld = base.PickEntities(deck_infos, ['__PROPERTIES__'], 'PROPERTY')
+			if PropsOfArcWeld != None:
+				if len(PropsOfArcWeld) ==1:
+					PropsOfWeldReq = PropsOfArcWeld[0]
+				else:
+					ListThicknessPropsReq = []
+					for w in range(0, len(PropsOfArcWeld), 1):
+						ValsThickness = PropsOfArcWeld[w].get_entity_values(deck_infos, ['T'])
+						ListThicknessPropsReq.append(ValsThickness['T'])
+					IndexMinThicknessProps = ListThicknessPropsReq.index(min(ListThicknessPropsReq))
+					PropsOfWeldReq = PropsOfArcWeld[IndexMinThicknessProps]
+					
+				StringEndIdsElemsWeld = '09'
+				StatusAddColor = True
+				NameElemsWeld = 'ArcWeld'
+				SetupInfosPropArcWeldFunc(ElemsWeldSelect, PropsOfWeldReq, StringEndIdsElemsWeld, NameElemsWeld, StatusAddColor)
+				
+				base.Or(ElemsWeldSelect)
+				base.Neighb('1')
+				ListShellAroundElemsWeld = FindElemsAroundArcWeldFunc(ElemsWeldSelect)
+				for k in range(0, len(ListShellAroundElemsWeld), 1):
+					PidsElemsAroundWeldOrigin = ListShellAroundElemsWeld[k][0].get_entity_values(deck_infos, ['PID'])
+					PropsElemsAroundWeldOrigin = PidsElemsAroundWeldOrigin['PID']
+					StringEndIdsElemsAroundWeld = '02'
+					NameElemsAroundWeld = 'HeatZone'
+					StatusAddColor = False
+					SetupInfosPropArcWeldFunc(ListShellAroundElemsWeld[k], PropsElemsAroundWeldOrigin, StringEndIdsElemsAroundWeld, NameElemsAroundWeld, StatusAddColor)
+				
+		else:
+			return 1
+
+#######****************** Chia pid cua arc shell va base sheet auto *****************#######
+def AuttoDividePropsOfArcWeldFunc(ProbarStatus, LabelStatus):
+	
+	ArcWeldElems = base.PickEntities(deck_infos, ['SHELL'])
+	if ArcWeldElems != None:
+		base.Or(ArcWeldElems)
+		base.Neighb('1')
+		ListInfosGroupWeldIsolate = DivideGroupsShellsArcFunc(ArcWeldElems)
+		if len(ListInfosGroupWeldIsolate) >0:
+			DividePropsOfArcWeldOnRuleFunc(ListInfosGroupWeldIsolate, ProbarStatus, LabelStatus)
+	
+#######****************** Chia pid cua arc shell va base sheet theo rule *****************#######
+def DividePropsOfArcWeldOnRuleFunc(ListInfosGroupWeldIsolate, ProbarStatus, LabelStatus):
+	
+	guitk.BCProgressBarSetTotalSteps(ProbarStatus, len(ListInfosGroupWeldIsolate))
+	for i in range(0, len(ListInfosGroupWeldIsolate), 1):
+		guitk.BCLabelSetText(LabelStatus, 'Loading Group ArcWeld ' + str(i+1)+'/'+str(len(ListInfosGroupWeldIsolate)))
+		base.Or(ListInfosGroupWeldIsolate[i])
+		base.Neighb('1')
+		ListGroupsShellsAroundArcWeld = FindElemsAroundArcWeldFunc(ListInfosGroupWeldIsolate[i])
+		if len(ListGroupsShellsAroundArcWeld) >0:
+			if len(ListGroupsShellsAroundArcWeld) == 2:
+				type_elem_req = CheckTypeOfElemsFunc(ListGroupsShellsAroundArcWeld)
+				if type_elem_req == True:
+					StatusBreak = True
+					ListShellsOnBaseSideReq, ListShellsOnSheetSideReq, TypeAngleReq, StatusCheckResult = FindBaseSheetSideAroundArcWeldFunc(ListGroupsShellsAroundArcWeld, ListInfosGroupWeldIsolate[i], StatusBreak)
+					if StatusCheckResult == True or TypeAngleReq == 'Check':
+						RelativeOnArcWeldErrorFunc(ListInfosGroupWeldIsolate[i])
+#				print(len(ListShellsOnBaseSideReq), len(ListShellsOnSheetSideReq), TypeAngleReq)
+					if len(ListShellsOnBaseSideReq)>0 and len(ListShellsOnSheetSideReq) >0 and TypeAngleReq != 'Check':
+						SetupInfosOfArcWeldOnRuleFunc(ListShellsOnBaseSideReq, ListShellsOnSheetSideReq, ListInfosGroupWeldIsolate[i], TypeAngleReq)
+				
+				else:
+					RelativeOnArcWeldErrorFunc(ListInfosGroupWeldIsolate[i])
+			else:
+				RelativeOnArcWeldErrorFunc(ListInfosGroupWeldIsolate[i])
+		
+		guitk.BCProgressBarSetProgress(ProbarStatus, i+1)
+
+
+def CheckTypeOfElemsFunc(ListGroupsShellsAroundArcWeld):
+	
+	type_elem_req = True
+	for i in range(0, len(ListGroupsShellsAroundArcWeld), 1):
+		type_shells = ListGroupsShellsAroundArcWeld[i][0].get_entity_values(deck_infos, ['__type__'])
+		if type_shells['__type__'] == 'SOLID':
+			type_elem_req = False
+	
+	return type_elem_req
+	
+def RelativeOnArcWeldErrorFunc(InfosShellsOfArcWeldError):
+	
+	PartsPointError = base.GetPartFromModuleId('Point Error')
+	if PartsPointError == None:
+		PartsPointError = base.NewPart('Point Error', 'Point Error')
+		
+	NodesOnShellsError = base.CollectEntities(deck_infos, InfosShellsOfArcWeldError, ['GRID'])
+	for i in range(0, len(NodesOnShellsError), 1):
+		AxisOfNodes = NodesOnShellsError[i].position
+		ElemsPointError = base.Newpoint(AxisOfNodes[0], AxisOfNodes[1], AxisOfNodes[2])
+		base.SetEntityPart(ElemsPointError, PartsPointError)
+	
+def SetupInfosOfArcWeldOnRuleFunc(ListShellsOnBaseSideReq, ListShellsOnSheetSideReq, ListShellsOnArcWeld, TypeAngleReq):
+
+	PidsBaseSideOrigin = ListShellsOnBaseSideReq[0].get_entity_values(deck_infos, ['PID'])
+	PidsSheetSideOrigin = ListShellsOnSheetSideReq[0].get_entity_values(deck_infos, ['PID'])
+#	print(PidsBaseSideOrigin)
+	
+	PropsBaseSideOrigin = PidsBaseSideOrigin['PID']
+	PropsSheetSideOrigin = PidsSheetSideOrigin['PID']
+	
+	ThicknessOfBaseSideOrigin = PropsBaseSideOrigin.get_entity_values(deck_infos, ['T'])
+	ThicknessOfSheetSideOrigin = PropsSheetSideOrigin.get_entity_values(deck_infos, ['T'])
+	
+	if TypeAngleReq == 'SONGSONG':
+		PropsArcWeldOrigin = PropsSheetSideOrigin
+	if TypeAngleReq == 'VUONGGOC':
+#		print(ThicknessOfBaseSideOrigin['T'], ThicknessOfSheetSideOrigin['T'])
+		if ThicknessOfBaseSideOrigin['T'] >ThicknessOfSheetSideOrigin['T']:
+			PropsArcWeldOrigin = PropsSheetSideOrigin
+		elif ThicknessOfBaseSideOrigin['T'] < ThicknessOfSheetSideOrigin['T']:
+			PropsArcWeldOrigin = PropsBaseSideOrigin
+		else:
+			PropsArcWeldOrigin = PropsSheetSideOrigin
+	
+	if len(ListShellsOnBaseSideReq) >0:
+		StringEndIdsBaseSide = '02'
+		NameBaseSide = 'HeatZone'
+		StatusColor = False
+		SetupInfosPropArcWeldFunc(ListShellsOnBaseSideReq, PropsBaseSideOrigin, StringEndIdsBaseSide, NameBaseSide, StatusColor)
+	if len(ListShellsOnSheetSideReq) >0:
+		StringEndIdsSheetSide = '02'
+		NameSheetSide = 'HeatZone'
+		StatusColor = False
+		SetupInfosPropArcWeldFunc(ListShellsOnSheetSideReq, PropsSheetSideOrigin, StringEndIdsSheetSide, NameSheetSide, StatusColor)
+	if len(ListShellsOnArcWeld) >0:
+		StringEndIdsArcWeld = '09'
+		NameArcWeld = 'ArcWeld'
+		StatusColor = True
+		SetupInfosPropArcWeldFunc(ListShellsOnArcWeld, PropsArcWeldOrigin, StringEndIdsArcWeld, NameArcWeld, StatusColor)
+
+#######*********************** Thiet dinh thong tin properties cho cac part **********************######
+def SetupInfosPropArcWeldFunc(ListInfosElemsWeld, InfosPropsOrigin, StringEndIdsWeld, NamePropsElems, StatusColor):
+	
+	type_props_origin = InfosPropsOrigin.get_entity_values(deck_infos, ['__type__'])
+	if type_props_origin['__type__'] == 'PSHELL': 
+		ValsColor = InfosPropsOrigin.get_entity_values(deck_infos, ['COLOR_R', 'COLOR_G', 'COLOR_B', 'MID1'])
+		
+		InfosMatsOrigin = ValsColor['MID1']
+		NameOfMatOrigin = InfosMatsOrigin._name
+		MatIdsOnNewProps = int(str(InfosMatsOrigin._id)[0:6]+StringEndIdsWeld)
+		MatsReferenIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewProps))
+		if MatsReferenIds == None:
+			NewMatsOnPropsReferen = base.CopyEntity(None, InfosMatsOrigin)
+			NewMatsOnPropsReferen.set_entity_values(deck_infos, {'MID': MatIdsOnNewProps, 'Name': NameOfMatOrigin + '_' + NamePropsElems})
+	
+		NewIdsOnProps = int(str(InfosPropsOrigin._id)[0:5]+StringEndIdsWeld)
+		PropsReferenIds = base.GetEntity(deck_infos, 'PSHELL', int(NewIdsOnProps))
+		if PropsReferenIds == None:
+			NewPropsElems = base.CopyEntity(None, InfosPropsOrigin)
+			NewPropsElems.set_entity_values(deck_infos, {'PID': NewIdsOnProps, 'Name': NamePropsElems, 'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			if StatusColor == True:
+				NewPropsElems.set_entity_values(deck_infos, {'COLOR_R': ValsColor['COLOR_R'], 'COLOR_G': ValsColor['COLOR_G'], 'COLOR_B': ValsColor['COLOR_B']})
+		else:
+			PropsReferenIds.set_entity_values(deck_infos, {'MID1': MatIdsOnNewProps, 'MID2': MatIdsOnNewProps, 'MID3': MatIdsOnNewProps})
+			if StatusColor == True:
+				PropsReferenIds.set_entity_values(deck_infos, {'COLOR_R': ValsColor['COLOR_R'], 'COLOR_G': ValsColor['COLOR_G'], 'COLOR_B': ValsColor['COLOR_B']})
+	
+		for i in range(0, len(ListInfosElemsWeld), 1):
+			ListInfosElemsWeld[i].set_entity_values(deck_infos, {'PID': NewIdsOnProps})
+	
+	else:
+		vals_props_origin = InfosPropsOrigin.get_entity_values(deck_infos, ['MID'])
+		infos_mat_solid_origin = vals_props_origin['MID']
+		NameOfMatSolidOrigin = infos_mat_solid_origin._name
+		MatIdsOnNewSolidProps = int(str(infos_mat_solid_origin._id)[0:6]+StringEndIdsWeld)
+		MatsReferenSolidIds = base.GetEntity(deck_infos, '__MATERIALS__', int(MatIdsOnNewSolidProps))
+		if MatsReferenSolidIds == None:
+			NewMatsOnPropsSolids = base.CopyEntity(None, infos_mat_solid_origin)
+			NewMatsOnPropsSolids.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidProps, 'Name': NameOfMatSolidOrigin + '_' + NamePropsElems})
+		
+		NewIdsOnSolidsProps = int(str(InfosPropsOrigin._id)[0:5]+StringEndIdsWeld)
+		PropsSolidsReferenIds = base.GetEntity(deck_infos, 'PSOLID', int(NewIdsOnSolidsProps))
+		if PropsSolidsReferenIds == None:
+			NewPropsSolids = base.CopyEntity(None, InfosPropsOrigin)
+			NewPropsSolids.set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps, 'Name': NamePropsElems, 'MID': MatIdsOnNewSolidProps})
+		else:
+			PropsSolidsReferenIds.set_entity_values(deck_infos, {'MID': MatIdsOnNewSolidProps})
+		
+		for i in range(0, len(ListInfosElemsWeld), 1):
+			ListInfosElemsWeld[i].set_entity_values(deck_infos, {'PID': NewIdsOnSolidsProps})
+	
+#######*********************** Tim kiem Base side va Sheet side xung quanh arc weld **********************######
+def FindBaseSheetSideAroundArcWeldFunc(ListGroupsShellsAroundArcWeld, ListInfosArcWeldConnect, StatusBreak):
+	
+	TypeAngleReq = None
+	ListShellsOnBaseSideReq = []
+	ListShellsOnSheetSideReq = []
+	
+	for i in range(0, len(ListInfosArcWeldConnect), 1):
+#		print(ListInfosArcWeldConnect[i]._id)
+		ListGroupsShellsCalculateAngle = []
+		ValsShellOfArcWelds = ListInfosArcWeldConnect[i].get_entity_values(deck_infos, {'type'})
+		if ValsShellOfArcWelds['type'] == 'CQUAD4':
+			NodesOnShellArc = base.CollectEntities(deck_infos, ListInfosArcWeldConnect[i], ['GRID'])
+#			print(len(NodesOnShellArc))
+			for SingleGroupShellAround in ListGroupsShellsAroundArcWeld:
+				ListShellsCheckAngle = []
+				for k in range(0, len(SingleGroupShellAround), 1):
+					NodesOnShellAroundArc = base.CollectEntities(deck_infos, SingleGroupShellAround[k], ['GRID'])
+					ListNodesCommonCheck = list(set(NodesOnShellArc).intersection(NodesOnShellAroundArc))
+					if len(ListNodesCommonCheck) >= 2:
+						ListShellsCheckAngle.append(SingleGroupShellAround[k])
+#						print(SingleGroupShellAround[k]._id)
+				if len(ListShellsCheckAngle) >0:
+					ListGroupsShellsCalculateAngle.append(ListShellsCheckAngle)
+		
+		if len(ListGroupsShellsCalculateAngle) >0:
+#			print(ListGroupsShellsCalculateAngle)
+			ListGroupElemsBaseSide, ListGroupElemsSheetSide, StatusAngleCheck, StatusCheckResult = CheckAngleTwoGroupsShellsFunc(ListGroupsShellsCalculateAngle)
+			if StatusAngleCheck != None:
+				if StatusBreak == True:
+					TypeAngleReq = StatusAngleCheck
+					for w in range(0, len(ListGroupsShellsAroundArcWeld), 1):
+						ListCommonShellsZoneBaseSide = set(ListGroupsShellsAroundArcWeld[w]).intersection(ListGroupElemsBaseSide)
+						ListCommonShellsZoneSheetSide = set(ListGroupsShellsAroundArcWeld[w]).intersection(ListGroupElemsSheetSide)
+						if len(ListCommonShellsZoneBaseSide)>0:
+							ListShellsOnBaseSideReq = ListGroupsShellsAroundArcWeld[w]
+						if len(ListCommonShellsZoneSheetSide)>0:
+							ListShellsOnSheetSideReq = ListGroupsShellsAroundArcWeld[w]
+					break
+					
+	return ListShellsOnBaseSideReq, ListShellsOnSheetSideReq, TypeAngleReq, StatusCheckResult
+	
+#######*********************** Check goc giua base side va sheet side **********************######
+def CheckAngleTwoGroupsShellsFunc(ListGroupsShellsCalculateAngle):
+	
+	ListGroupElemsBaseSide = []
+	ListGroupElemsSheetSide = []
+	StatusAngleCheck = None
+	StatusCheckResult = None
+	if len(ListGroupsShellsCalculateAngle)>1:
+		if len(ListGroupsShellsCalculateAngle[0]) > len(ListGroupsShellsCalculateAngle[1]):
+			ListGroupElemsBaseSide = ListGroupsShellsCalculateAngle[0]
+			ListGroupElemsSheetSide = ListGroupsShellsCalculateAngle[1]
+		elif len(ListGroupsShellsCalculateAngle[0]) < len(ListGroupsShellsCalculateAngle[1]):
+			ListGroupElemsBaseSide = ListGroupsShellsCalculateAngle[1]
+			ListGroupElemsSheetSide = ListGroupsShellsCalculateAngle[0]
+		else:
+			ListGroupElemsBaseSide = ListGroupsShellsCalculateAngle[0]
+			ListGroupElemsSheetSide = ListGroupsShellsCalculateAngle[1]
+			StatusCheckResult = True
+	else:
+		StatusAngleCheck = 'Check'		
+	
+	if len(ListGroupElemsBaseSide) >0 and len(ListGroupElemsSheetSide) >0:
+		ListAngleSheetToBaseSideCheck = []
+		for i in range(0, len(ListGroupElemsSheetSide), 1):
+			VecsOfShellsSheetSide = base.GetNormalVectorOfShell(ListGroupElemsSheetSide[i])
+			for k in range(0, len(ListGroupElemsBaseSide), 1):
+				VecsOfShellsBaseSide = base.GetNormalVectorOfShell(ListGroupElemsBaseSide[k])
+				Angle2ShellsSheetToBaseSide = math.degrees(calc.CalcAngleOfVectors(VecsOfShellsSheetSide, VecsOfShellsBaseSide))
+				ListAngleSheetToBaseSideCheck.append(Angle2ShellsSheetToBaseSide)
+		
+		if len(ListAngleSheetToBaseSideCheck)>0:
+#			print(ListAngleSheetToBaseSideCheck)
+			if min(ListAngleSheetToBaseSideCheck)<= 5 or max(ListAngleSheetToBaseSideCheck) >=175:
+				StatusAngleCheck = 'SONGSONG'
+			elif 80<= min(ListAngleSheetToBaseSideCheck)<=100 or 80<= max(ListAngleSheetToBaseSideCheck)<=100:
+				StatusAngleCheck = 'VUONGGOC'
+			else:
+				StatusAngleCheck = 'Check'
+	
+	return ListGroupElemsBaseSide, ListGroupElemsSheetSide, StatusAngleCheck, StatusCheckResult
+
+#######*********************** Tim vung zone xung quanh arc **********************######
+def FindElemsAroundArcWeldFunc(ListElemsArcWeld):
+	
+	ListGroupsShellsAroundArcWeld = []
+	
+	AllsPropsVisible = base.CollectEntities(deck_infos, None, ['PSHELL', 'PSOLID'], filter_visible = True)
+	if len(AllsPropsVisible) >0:
+		ListPropsVisAroundArc = RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld)
+		if len(ListPropsVisAroundArc) >0:
+			NodesOnElemsArc = base.CollectEntities(deck_infos, ListElemsArcWeld, ['GRID'])
+			for k in range(0, len(ListPropsVisAroundArc), 1):
+				ListElemsCommonOnSingleProps = []
+				ElemsOnPropsVis = base.CollectEntities(deck_infos, ListPropsVisAroundArc[k], ['__ELEMENTS__'], filter_visible = True)
+				for i in range(0, len(ElemsOnPropsVis), 1):
+					GridsOfElemsVis = base.CollectEntities(deck_infos, ElemsOnPropsVis[i], ['GRID'])
+					ListGridsCommonWithArc = list(set(GridsOfElemsVis).intersection(NodesOnElemsArc))
+					if len(ListGridsCommonWithArc) >0:
+						ListElemsCommonOnSingleProps.append(ElemsOnPropsVis[i])
+			
+				if len(ListElemsCommonOnSingleProps) >0:			
+					ListGroupsShellsAroundArcWeld.append(ListElemsCommonOnSingleProps)
+#					aaa = base.CreateEntity(constants.NASTRAN, "SET")
+#					base.AddToSet(aaa, ListElemsCommonOnSingleProps)
+	return ListGroupsShellsAroundArcWeld
+
+#######*********************** Loai bo cac PID khong co duoi la 00 **********************######
+def RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld):
+	
+	ListPropsVisAroundArc = []
+	for i in range(0, len(AllsPropsVisible), 1):
+		if len(str(AllsPropsVisible[i]._id)) == 7 and str(AllsPropsVisible[i]._id).endswith('00'):
+			ElemsOnPropVis = base.CollectEntities(deck_infos, AllsPropsVisible[i], ['SHELL'], filter_visible = True)
+			ListCommonShellArc = list(set(ListElemsArcWeld).intersection(ElemsOnPropVis))
+			if len(ListCommonShellArc) == 0:
+				ListPropsVisAroundArc.append(AllsPropsVisible[i])
+			
+	return ListPropsVisAroundArc
+
+#######****************** Chia group shell arc weld *****************#######
+def DivideGroupsShellsArcFunc(InfosElemsIsolate):
+	
+	ListInfosGroupWeldIsolate = []
+	AllsElemsVisConnect = base.CollectEntities(deck_infos, None, ['SHELL'], filter_visible = True)
+	if len(AllsElemsVisConnect) >0:
+		DictIsolateElemsVis = base.IsolateConnectivityGroups(entities = AllsElemsVisConnect, separate_at_blue_bounds = True, separate_at_pid_bounds = True, feature_angle = 90)
+		if DictIsolateElemsVis != None:
+			for GroupsNameIsolate,  InfosEntityIsolate in DictIsolateElemsVis.items():
+				ListGroupsShellsCommon = list(set(InfosEntityIsolate).intersection(InfosElemsIsolate))
+				if len(ListGroupsShellsCommon) >0:
+					ListInfosGroupWeldIsolate.append(ListGroupsShellsCommon)
+#					a = base.CreateEntity(constants.NASTRAN, "SET")
+#					base.AddToSet(a, ListGroupsShellsCommon)
+	return ListInfosGroupWeldIsolate
+	
+DividePropsOfArcWeldTool()
+DividePropsOfArcWeldTool_0728_1000
+
+
+
+# PYTHON script
+import os
+import ansa
+from ansa import *
+import math
+
+deck_infos = constants.NASTRAN
+#@session.defbutton('2-MESH', 'DividePropsOfArcWeldTool','Chia vùng zone Arc theo tiêu chuẩn SSD')
+def DividePropsOfArcWeldTool():
+	
+	TopWindow = guitk.BCWindowCreate("Setup Infos for Welding Props Tool ver01", guitk.constants.BCOnExitDestroy)
+	BCButtonGroup_1 = guitk.BCButtonGroupCreate(TopWindow, "Select Options: ", guitk.constants.BCHorizontal)
+	BCRadioButton_1 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Auto", None, 0)
+	BCRadioButton_2 = guitk.BCRadioButtonCreate(BCButtonGroup_1, "Manual", None, 0)
+	guitk.BCRadioButtonSetChecked(BCRadioButton_2, True)
+	
+	BCProgressBar_1 = guitk.BCProgressBarCreate(TopWindow, 100)
+	BCLabel_1 = guitk.BCLabelCreate(TopWindow, " ")
+	BCDialogButtonBox_1 = guitk.BCDialogButtonBoxCreate(TopWindow)
+	
+	_window = [BCProgressBar_1, BCLabel_1, BCRadioButton_1, BCRadioButton_2]
+	guitk.BCWindowSetRejectFunction(TopWindow, RejectFunc, _window)
+	guitk.BCWindowSetAcceptFunction(TopWindow, AcceptFunc, _window)
+	
+	guitk.BCShow(TopWindow)
+
+def RejectFunc(TopWindow, _window):
+	return 1
+	
+#***************** Khoi dong giao dien nguoi dung
+def AcceptFunc(TopWindow, _window):
+	
+	ProbarStatus = _window[0]
+	LabelStatus = _window[1]
+	AutoStatus = guitk.BCRadioButtonIsChecked(_window[2])
+	ManualStatus = guitk.BCRadioButtonIsChecked(_window[3])
+	if AutoStatus == True:
+		AuttoDividePropsOfArcWeldFunc(ProbarStatus, LabelStatus)
+	if ManualStatus == True:
+		DividePropsOfArcWeldByManualFunc(ProbarStatus, LabelStatus)
+
+#######****************** Chia pid cua arc shell va base sheet bang tay *****************#######
+def DividePropsOfArcWeldByManualFunc(ProbarStatus, LabelStatus):
+	
+	for i in range(0, 100, 1):
+		base.SetPickMethod(base.constants.PID_REGION_SELECTION)
+		ElemsWeldSelect = base.PickEntities(deck_infos, ['SHELL'])
+		if ElemsWeldSelect != None:
+			PropsOfArcWeld = base.PickEntities(deck_infos, ['PSHELL'])
+			if PropsOfArcWeld != None:
+				SetInfosPropsOfArcWeldFunc(PropsOfArcWeld, ElemsWeldSelect)
+				
+		else:
+			return 1
+
+#######****************** Chia pid cua arc shell va base sheet auto *****************#######
+def AuttoDividePropsOfArcWeldFunc(ProbarStatus, LabelStatus):
+	
+	ArcWeldElems = base.PickEntities(deck_infos, ['SHELL'])
+	if ArcWeldElems != None:
+		base.Or(ArcWeldElems)
+		base.Neighb('1')
+		ListInfosGroupWeldIsolate = DivideGroupsShellsArcFunc(ArcWeldElems)
+		if len(ListInfosGroupWeldIsolate) >0:
+#			print(len(ListInfosGroupWeldIsolate))
+			DividePropsOfArcWeldOnRuleFunc(ListInfosGroupWeldIsolate, ProbarStatus, LabelStatus)
+	
+#######****************** Chia pid cua arc shell va base sheet theo rule *****************#######
+def DividePropsOfArcWeldOnRuleFunc(ListInfosGroupWeldIsolate, ProbarStatus, LabelStatus):
+	
+	guitk.BCProgressBarSetTotalSteps(ProbarStatus, len(ListInfosGroupWeldIsolate))
+	for i in range(0, len(ListInfosGroupWeldIsolate), 1):
+		print('Loading Step: ' + str(i+1) + '/' + str(len(ListInfosGroupWeldIsolate)))
+		guitk.BCLabelSetText(LabelStatus, 'Loading Group ArcWeld ' + str(i+1)+'/'+str(len(ListInfosGroupWeldIsolate)))
+		base.Or(ListInfosGroupWeldIsolate[i])
+		base.Neighb('1')
+		ListGroupsShellsAroundArcWeld = FindElemsAroundArcWeldFunc(ListInfosGroupWeldIsolate[i])
+		
+		guitk.BCProgressBarSetProgress(ProbarStatus, i+1)
+
+#######*********************** Tim vung zone xung quanh arc **********************######
+def FindElemsAroundArcWeldFunc(ListElemsArcWeld):
+	
+	AllsPropsVisible = base.CollectEntities(deck_infos, None, ['PSHELL'], filter_visible = True)
+	if len(AllsPropsVisible) >0:
+		ListPropsVisAroundArc = RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld)
+		if len(ListPropsVisAroundArc) >0:
+			for i in range(0, len(ListElemsArcWeld), 1):
+				NodesOnElemsArc = base.CollectEntities(deck_infos, ListElemsArcWeld[i], ['GRID'])
+				ListPropsOnArcWeld = []
+				for k in range(0, len(ListPropsVisAroundArc), 1):
+					ElemsOnPropsVis = base.CollectEntities(deck_infos, ListPropsVisAroundArc[k], ['SHELL'], filter_visible = True)
+					GridsOfElemsVis = base.CollectEntities(deck_infos, ElemsOnPropsVis, ['GRID'])
+					ListGridsCommonWithArc = list(set(GridsOfElemsVis).intersection(NodesOnElemsArc))
+					if len(ListGridsCommonWithArc) >0:
+						ListPropsOnArcWeld.append(ListPropsVisAroundArc[k]) 
+				
+				if len(ListPropsOnArcWeld) >0:
+					SetInfosPropsOfArcWeldFunc(ListPropsOnArcWeld, [ListElemsArcWeld[i]])
+					
+	
+def SetInfosPropsOfArcWeldFunc(ListPropsOnArcWeld, InfosElemsWeld):
+	
+	ListThicknessOnProps = []
+	ThicknessOfWeld = None
+#	MinThicknessWeld = None
+	
+	for i in range(0, len(ListPropsOnArcWeld), 1):
+		ValsPropsOnWeld = ListPropsOnArcWeld[i].get_entity_values(deck_infos, ['T'])
+		ListThicknessOnProps.append(ValsPropsOnWeld['T'])
+	
+	if len(ListThicknessOnProps) >0:
+		if len(ListThicknessOnProps) <3:
+			ThicknessOfWeld = sum(ListThicknessOnProps)/len(ListThicknessOnProps)
+			MinThicknessWeld = min(ListThicknessOnProps)
+		else:
+			ListThicknessRemoveDouble = list(set(ListThicknessOnProps))
+			if len(ListThicknessRemoveDouble) == 1:
+				ThicknessOfWeld = sum(ListThicknessRemoveDouble)/len(ListThicknessRemoveDouble)
+##				MinThicknessWeld = min(ListThicknessRemoveDouble)	
+			
+	if ThicknessOfWeld != None:
+		IdsOdPropsWeld = int(str(9000)+str(ThicknessOfWeld).replace('.',''))
+		PropsReferenIds = base.GetEntity(deck_infos, 'PSHELL', int(IdsOdPropsWeld))
+		if PropsReferenIds == None:
+			NewPropsElems = base.CreateEntity(deck_infos, 'PSHELL', {'PID': IdsOdPropsWeld, 'Name': 'ArcWeld_Thickness_' + str(ThicknessOfWeld), 'T': ThicknessOfWeld})
+		
+		for w in range(0, len(InfosElemsWeld), 1):	
+			InfosElemsWeld[w].set_entity_values(deck_infos, {'PID': IdsOdPropsWeld})	
+
+#######*********************** Loai bo cac PID khong co duoi la 00 **********************######
+def RemovePropsArcOnListPropsVisVisFunc(AllsPropsVisible, ListElemsArcWeld):
+	
+	ListPropsVisAroundArc = []
+	for i in range(0, len(AllsPropsVisible), 1):
+		if len(str(AllsPropsVisible[i]._id)) == 7 and str(AllsPropsVisible[i]._id).endswith('00'):
+			ElemsOnPropVis = base.CollectEntities(deck_infos, AllsPropsVisible[i], ['SHELL'], filter_visible = True)
+			ListCommonShellArc = list(set(ListElemsArcWeld).intersection(ElemsOnPropVis))
+			if len(ListCommonShellArc) == 0:
+				ListPropsVisAroundArc.append(AllsPropsVisible[i])
+			
+	return ListPropsVisAroundArc
+
+#######****************** Chia group shell arc weld *****************#######
+def DivideGroupsShellsArcFunc(InfosElemsIsolate):
+	
+	ListInfosGroupWeldIsolate = []
+	AllsElemsVisConnect = base.CollectEntities(deck_infos, None, ['SHELL'], filter_visible = True)
+	if len(AllsElemsVisConnect) >0:
+		DictIsolateElemsVis = base.IsolateConnectivityGroups(entities = AllsElemsVisConnect, separate_at_blue_bounds = True, separate_at_pid_bounds = True, feature_angle = 90)
+		if DictIsolateElemsVis != None:
+			for GroupsNameIsolate,  InfosEntityIsolate in DictIsolateElemsVis.items():
+				ListGroupsShellsCommon = list(set(InfosEntityIsolate).intersection(InfosElemsIsolate))
+				if len(ListGroupsShellsCommon) >0:
+					ListInfosGroupWeldIsolate.append(ListGroupsShellsCommon)
+#					a = base.CreateEntity(constants.NASTRAN, "SET")
+#					base.AddToSet(a, ListGroupsShellsCommon)
+	return ListInfosGroupWeldIsolate
+	
+DividePropsOfArcWeldTool()
+DivideThicknessOfArcWeldTool_0611
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
